@@ -565,6 +565,14 @@ where
  "not_recursive_ctes s \<equiv> {ptr. \<exists>cap. cteCaps_of s ptr = Some cap
                              \<and> \<not> (isZombie cap \<and> capZombiePtr cap = ptr)}"
 
+lemma not_recursive_ctes_wu [simp]:
+  "not_recursive_ctes (ksWorkUnitsCompleted_update f s) = not_recursive_ctes s"
+  by (simp add: not_recursive_ctes_def)
+
+lemma not_recursive_ctes_irq_state_independent[simp, intro!]:
+  "not_recursive_ctes (s \<lparr> ksMachineState := ksMachineState s \<lparr> irq_state := x \<rparr>\<rparr>) = not_recursive_ctes s"
+  by (simp add: not_recursive_ctes_def)
+
 lemma capSwap_not_recursive:
   "\<lbrace>\<lambda>s. card (not_recursive_ctes s) \<le> n
      \<and> cte_wp_at' (\<lambda>cte. \<not> (isZombie (cteCap cte) \<and> capZombiePtr (cteCap cte) = p1)) p1 s
@@ -707,14 +715,6 @@ lemma case_Zombie_assert_fold:
   "(case cap of Zombie ptr zb n \<Rightarrow> haskell_assertE (P ptr) str | _ \<Rightarrow> returnOk ())
        = assertE (isZombie cap \<longrightarrow> P (capZombiePtr cap))"
   by (cases cap, simp_all add: isCap_simps assertE_def)
-
-lemma not_recursive_ctes_wu [simp]:
-  "not_recursive_ctes (ksWorkUnitsCompleted_update f s) = not_recursive_ctes s"
-  by (simp add: not_recursive_ctes_def)
-
-lemma not_recursive_ctes_irq_state_independent[simp, intro!]:
-  "not_recursive_ctes (s \<lparr> ksMachineState := ksMachineState s \<lparr> irq_state := x \<rparr>\<rparr>) = not_recursive_ctes s"
-  by (simp add: not_recursive_ctes_def)
 
 lemma typ_at'_irq_state_independent[simp, intro!]:
   "P (typ_at' T p (s \<lparr>ksMachineState := ksMachineState s \<lparr> irq_state := f (irq_state (ksMachineState s)) \<rparr>\<rparr>))
@@ -6179,14 +6179,6 @@ lemmas preemptionPoint_invR =
 
 lemmas preemptionPoint_invE =
   valid_validE_E [OF preemptionPoint_inv]
-
-lemma sch_act_simple_wu [simp, intro!]:
-  "sch_act_simple (ksWorkUnitsCompleted_update f s) = sch_act_simple s"
-  by (simp add: sch_act_simple_def)
-
-lemma ex_cte_cap_to'_wu [simp, intro!]:
-  "ex_cte_cap_to' p (ksWorkUnitsCompleted_update f s) = ex_cte_cap_to' p s"
-  by (simp add: ex_cte_cap_to'_def)
 
 lemma finaliseSlot_invs':
   assumes finaliseCap:

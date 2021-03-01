@@ -1460,16 +1460,6 @@ lemma invokeArch_tcb_at':
   apply wpsimp
   done
 
-(* FIXME random place to have these *)
-lemma pspace_no_overlap_queuesL1 [simp]:
-  "pspace_no_overlap' w sz (ksReadyQueuesL1Bitmap_update f s) = pspace_no_overlap' w sz s"
-  by (simp add: pspace_no_overlap'_def)
-
-(* FIXME random place to have these *)
-lemma pspace_no_overlap_queuesL2 [simp]:
-  "pspace_no_overlap' w sz (ksReadyQueuesL2Bitmap_update f s) = pspace_no_overlap' w sz s"
-  by (simp add: pspace_no_overlap'_def)
-
 crunch pspace_no_overlap'[wp]: setThreadState "pspace_no_overlap' w s"
   (simp: unless_def)
 

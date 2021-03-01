@@ -118,32 +118,6 @@ lemma preemptionPoint_inv:
           | simp)+
   done
 
-lemma invs'_wu [simp, intro!]:
-  "invs' (ksWorkUnitsCompleted_update f s) = invs' s"
-  apply (simp add: invs'_def cur_tcb'_def valid_state'_def Invariants_H.valid_queues_def
-                   valid_queues'_def valid_irq_node'_def valid_machine_state'_def
-                   ct_not_inQ_def ct_idle_or_in_cur_domain'_def tcb_in_cur_domain'_def
-                   bitmapQ_defs valid_queues_no_bitmap_def)
-  done
-
-lemma ct_in_state'_irq_state_independent [simp, intro!]:
-  "ct_in_state' x (s\<lparr>ksMachineState := ksMachineState s
-                          \<lparr>irq_state := f (irq_state (ksMachineState s))\<rparr>\<rparr>) =
-   ct_in_state' x s"
-  by (simp add: ct_in_state'_def irq_state_independent_H_def)+
-
-lemma ex_cte_cap_wp_to'_irq_state_independent [simp, intro!]:
-  "ex_cte_cap_wp_to' x y (s\<lparr>ksMachineState := ksMachineState s
-                          \<lparr>irq_state := f (irq_state (ksMachineState s))\<rparr>\<rparr>) =
-   ex_cte_cap_wp_to' x y s"
-  by (simp add: ex_cte_cap_wp_to'_def irq_state_independent_H_def)+
-
-lemma ps_clear_irq_state_independent [simp, intro!]:
-  "ps_clear a b (s\<lparr>ksMachineState := ksMachineState s
-                    \<lparr>irq_state := f (irq_state (ksMachineState s))\<rparr>\<rparr>) =
-   ps_clear a b s"
-  by (simp add: ps_clear_def)
-
 lemma invs'_irq_state_independent [simp, intro!]:
   "invs' (s\<lparr>ksMachineState := ksMachineState s
                  \<lparr>irq_state := f (irq_state (ksMachineState s))\<rparr>\<rparr>) =

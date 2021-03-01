@@ -53,6 +53,10 @@ definition valid_inQ_queues :: "KernelStateData_H.kernel_state \<Rightarrow> boo
   "valid_inQ_queues \<equiv>
      \<lambda>s. \<forall>d p. (\<forall>t\<in>set (ksReadyQueues s (d, p)). obj_at' (inQ d p) t s) \<and> distinct (ksReadyQueues s (d, p))"
 
+lemma valid_inQ_queues_ksSchedulerAction_update[simp]:
+  "valid_inQ_queues (ksSchedulerAction_update f s) = valid_inQ_queues s"
+  by (simp add: valid_inQ_queues_def)
+
 defs capHasProperty_def:
   "capHasProperty ptr P \<equiv> cte_wp_at' (\<lambda>c. P (cteCap c)) ptr"
 end
@@ -1322,10 +1326,6 @@ lemma tcbSchedEnqueue_valid_inQ_queues[wp]:
  *)
 definition
   "removeFromBitmap_conceal d p q t \<equiv> when (null [x\<leftarrow>q . x \<noteq> t]) (removeFromBitmap d p)"
-
-lemma valid_inQ_queues_ksSchedulerAction_update[simp]:
-  "valid_inQ_queues (ksSchedulerAction_update f s) = valid_inQ_queues s"
-  by (simp add: valid_inQ_queues_def)
 
 lemma rescheduleRequired_valid_inQ_queues[wp]:
   "\<lbrace>valid_inQ_queues\<rbrace> rescheduleRequired \<lbrace>\<lambda>_. valid_inQ_queues\<rbrace>"
