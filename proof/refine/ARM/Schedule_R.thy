@@ -2604,139 +2604,6 @@ lemma possibleSwitchTo_invs':
   apply (clarsimp simp: obj_at'_def tcb_in_cur_domain'_def)
   done
 
-lemma setReleaseQueue_tcb_at'[wp]:
- "setReleaseQueue qs \<lbrace>typ_at' T tcbPtr\<rbrace>"
-  unfolding setReleaseQueue_def
-  by wpsimp
-
-lemma setReleaseQueue_ksReleaseQueue[wp]:
-  "\<lbrace>\<lambda>_. P qs\<rbrace> setReleaseQueue qs \<lbrace>\<lambda>_ s. P (ksReleaseQueue s)\<rbrace>"
-  by (wpsimp simp: setReleaseQueue_def)
-
-lemma setReleaseQueue_pred_tcb_at'[wp]:
- "setReleaseQueue qs \<lbrace>\<lambda>s. P (pred_tcb_at' proj P' t' s)\<rbrace>"
-  by (wpsimp simp: setReleaseQueue_def)
-
-crunches tcbReleaseDequeue
-  for valid_pspace'[wp]: valid_pspace'
-  and state_refs_of'[wp]: "\<lambda>s. P (state_refs_of' s)"
-  and list_refs_of_replies'[wp]: "\<lambda>s. P (list_refs_of_replies' s)"
-  and valid_global_refs'[wp]: valid_global_refs'
-  and valid_arch_state'[wp]: valid_arch_state'
-  and irq_node'[wp]: "\<lambda>s. P (irq_node' s)"
-  and typ_at'[wp]: "\<lambda>s. P (typ_at' T p s)"
-  and valid_irq_states'[wp]: valid_irq_states'
-  and ksInterruptState[wp]: "\<lambda>s. P (ksInterruptState s)"
-  and pspace_domain_valid[wp]: pspace_domain_valid
-  and ksCurDomain[wp]: "\<lambda>s. P (ksCurDomain s)"
-  and ksDomSchedule[wp]: "\<lambda>s. P (ksDomSchedule s)"
-  and ksDomScheduleIdx[wp]: "\<lambda>s. P (ksDomScheduleIdx s)"
-  and gsUntypedZeroRanges[wp]: "\<lambda>s. P (gsUntypedZeroRanges s)"
-  and valid_machine_state'[wp]: valid_machine_state'
-  (simp: crunch_simps wp: crunch_wps)
-
-crunches tcbReleaseDequeue
-  for cur_tcb'[wp]: cur_tcb'
-  (simp: crunch_simps cur_tcb'_def wp: crunch_wps threadSet_cur ignore: threadSet)
-
-lemma tcbInReleaseQueue_update_tcb_cte_cases:
-  "(a, b) \<in> ran tcb_cte_cases \<Longrightarrow> a (tcbInReleaseQueue_update f tcb) = a tcb"
-  unfolding tcb_cte_cases_def
-  by (case_tac tcb; fastforce simp: tcbInReleaseQueue_update_def)
-
-lemma tcbInReleaseQueue_update_ctes_of[wp]:
-  "threadSet (tcbInReleaseQueue_update f) x \<lbrace>\<lambda>s. P (ctes_of s)\<rbrace>"
-  by (wpsimp wp: threadSet_ctes_ofT simp: tcbInReleaseQueue_update_tcb_cte_cases)
-
-crunches tcbReleaseDequeue
-  for ctes_of[wp]: "\<lambda>s. P (ctes_of s)"
-  and valid_idle'[wp]: valid_idle'
-  and valid_irq_handlers'[wp]: valid_irq_handlers'
-  and valid_pde_mappings'[wp]: valid_pde_mappings'
-  and ct_idle_or_in_cur_domain'[wp]: ct_idle_or_in_cur_domain'
-  and if_unsafe_then_cap'[wp]: if_unsafe_then_cap'
-  (ignore: threadSet
-     simp: crunch_simps tcbInReleaseQueue_update_tcb_cte_cases
-       wp: crunch_wps threadSet_idle' threadSet_irq_handlers' threadSet_ct_idle_or_in_cur_domain'
-           threadSet_ifunsafe'T)
-
-lemma tcbReleaseDequeue_valid_objs'[wp]:
-  "tcbReleaseDequeue \<lbrace>valid_objs'\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  by (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_valid_objs')
-
-lemma tcbReleaseDequeue_sch_act_wf[wp]:
-  "tcbReleaseDequeue \<lbrace>\<lambda>s. sch_act_wf (ksSchedulerAction s) s\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  by (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_sch_act)
-
-lemma tcbReleaseDequeue_if_live_then_nonz_cap'[wp]:
-  "tcbReleaseDequeue \<lbrace>if_live_then_nonz_cap'\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  apply (wpsimp simp: setReprogramTimer_def setReleaseQueue_def tcbInReleaseQueue_update_tcb_cte_cases wp: threadSet_iflive'T)
-  by auto
-
-lemma tcbReleaseDequeue_ct_not_inQ[wp]:
-  "tcbReleaseDequeue \<lbrace>ct_not_inQ\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  by (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_not_inQ)
-
-lemma tcbReleaseDequeue_valid_queues[wp]:
-  "tcbReleaseDequeue \<lbrace>valid_queues\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  apply (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_valid_queues)
-  by (auto simp: valid_queues_def valid_queues_no_bitmap_def valid_bitmapQ_def bitmapQ_def
-                 bitmapQ_no_L2_orphans_def bitmapQ_no_L1_orphans_def inQ_def)
-
-lemma tcbReleaseDequeue_valid_queues'[wp]:
-  "tcbReleaseDequeue \<lbrace>valid_queues'\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  apply (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_valid_queues')
-  by (auto simp: valid_queues'_def valid_queues_no_bitmap_def valid_bitmapQ_def bitmapQ_def
-                 bitmapQ_no_L2_orphans_def bitmapQ_no_L1_orphans_def inQ_def)
-
-lemma tcbReleaseDequeue_valid_release_queue[wp]:
-  "\<lbrace>valid_release_queue and (\<lambda>s. distinct (ksReleaseQueue s))\<rbrace>
-   tcbReleaseDequeue
-   \<lbrace>\<lambda>_. valid_release_queue\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  apply (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_valid_release_queue)
-  apply (clarsimp simp: valid_release_queue_def)
-  by (case_tac "ksReleaseQueue s"; simp)
-
-lemma tcbReleaseDequeue_valid_release_queue'[wp]:
-  "\<lbrace>valid_release_queue' and (\<lambda>s. ksReleaseQueue s \<noteq> [])\<rbrace>
-   tcbReleaseDequeue
-   \<lbrace>\<lambda>_. valid_release_queue'\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  apply (wpsimp simp: setReprogramTimer_def setReleaseQueue_def wp: threadSet_valid_release_queue')
-  apply (clarsimp simp: valid_release_queue'_def split: list.splits)
-  by (metis list.exhaust_sel set_ConsD)
-
-lemma tcbReleaseDequeue_invs'[wp]:
-  "\<lbrace>invs'
-    and (\<lambda>s. ksReleaseQueue s \<noteq> [])
-    and distinct_release_queue\<rbrace>
-   tcbReleaseDequeue
-   \<lbrace>\<lambda>_. invs'\<rbrace>"
-  by (wpsimp simp: invs'_def valid_state'_def
-               wp: valid_irq_node_lift irqs_masked_lift untyped_ranges_zero_lift
-                   cteCaps_of_ctes_of_lift)
-
-lemma tcbReleaseDequeue_ksCurThread[wp]:
-  "\<lbrace>\<lambda>s. P (hd (ksReleaseQueue s)) (ksCurThread s)\<rbrace>
-   tcbReleaseDequeue
-   \<lbrace>\<lambda>r s. P r (ksCurThread s)\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  by (wpsimp simp: setReprogramTimer_def setReleaseQueue_def)
-
-lemma tcbReleaseDequeue_runnable'[wp]:
-  "\<lbrace>\<lambda>s. st_tcb_at' runnable' (hd (ksReleaseQueue s)) s\<rbrace>
-   tcbReleaseDequeue
-   \<lbrace>\<lambda>r s. st_tcb_at' runnable' r s\<rbrace>"
-  unfolding tcbReleaseDequeue_def
-  by (wpsimp simp: setReprogramTimer_def wp: threadSet_pred_tcb_no_state)
-
 crunches releaseQNonEmptyAndReady
   for inv[wp]: P
 
@@ -2746,7 +2613,7 @@ lemma releaseQNonEmptyAndReady_post_non_empty[wp]:
   apply (wpsimp wp: refillReady_wp threadGet_wp)
   by (clarsimp simp: obj_at'_def)
 
-crunches setReprogramTimer, possibleSwitchTo
+crunches possibleSwitchTo
   for ksReleaseQueue[wp]: "\<lambda>s. P (ksReleaseQueue s)"
   (wp: crunch_wps simp: crunch_simps)
 
@@ -3041,4 +2908,119 @@ lemma ct_released_cross_weak:
   done
 
 end
+
+lemma schedContextDonate_valid_queues:
+  "\<lbrace>valid_queues and valid_objs'\<rbrace> schedContextDonate scPtr tcbPtr \<lbrace>\<lambda>_. valid_queues\<rbrace>"
+  (is "valid ?pre _ _")
+  apply (clarsimp simp: schedContextDonate_def)
+  apply (rule hoare_seq_ext[OF _ stateAssert_sp])
+  apply (rule hoare_seq_ext[OF _ get_sc_sp'])
+  apply (rule_tac B="\<lambda>_. ?pre" in hoare_seq_ext[rotated])
+   apply (rule hoare_when_cases, clarsimp)
+   apply (rule_tac B="\<lambda>_. ?pre" in hoare_seq_ext[rotated])
+    apply (wpsimp wp: tcbSchedDequeue_valid_queues)
+    apply (fastforce intro: valid_objs'_maxDomain valid_objs'_maxPriority)
+   apply (rule hoare_seq_ext_skip)
+    apply (wpsimp wp: tcbReleaseRemove_valid_queues)
+   apply (rule hoare_seq_ext_skip)
+    apply (wpsimp wp: threadSet_valid_queues_new threadSet_valid_objs')
+    apply (clarsimp simp: obj_at'_def inQ_def valid_tcb'_def tcb_cte_cases_def)
+   apply (wpsimp wp: rescheduleRequired_valid_queues)
+   apply fastforce
+  apply (wpsimp wp: threadSet_valid_queues_new hoare_vcg_all_lift hoare_vcg_imp_lift')
+  apply (clarsimp simp: obj_at'_def inQ_def)
+  done
+
+lemma schedContextDonate_valid_queues':
+  "schedContextDonate sc t \<lbrace>valid_queues'\<rbrace>"
+  apply (clarsimp simp: schedContextDonate_def)
+  apply (rule hoare_seq_ext_skip, solves wpsimp)
+  apply (rule hoare_seq_ext_skip, solves wpsimp)
+  apply (rule hoare_seq_ext_skip)
+   apply (rule hoare_when_cases, simp)
+   apply ((rule hoare_seq_ext_skip
+           , wpsimp wp: threadSet_valid_queues' hoare_vcg_imp_lift' simp: inQ_def)
+          | wpsimp wp: threadSet_valid_queues' hoare_vcg_imp_lift' simp: inQ_def)+
+  done
+
+crunches tcbSchedDequeue
+  for ksReleaseQueue[wp]: "\<lambda>s. P (ksReleaseQueue s)"
+
+crunches schedContextDonate
+  for vrq[wp]: valid_release_queue
+  and vrq'[wp]: valid_release_queue'
+  (wp: threadSet_vrq_inv threadSet_vrq'_inv simp: crunch_simps)
+
+crunches schedContextDonate
+  for valid_irq_handlers'[wp]: "\<lambda>s. valid_irq_handlers' s"
+  and valid_mdb'[wp]: valid_mdb'
+  (ignore: threadSet
+     simp: comp_def valid_mdb'_def crunch_simps
+       wp: valid_irq_handlers_lift'' threadSet_ctes_of)
+
+crunches schedContextDonate
+  for sch_act_sane[wp]: sch_act_sane
+  and sch_act_simple[wp]: sch_act_simple
+  and sch_act_not[wp]: "sch_act_not t"
+  (wp: crunch_wps simp: crunch_simps rule: sch_act_sane_lift)
+
+crunches schedContextDonate
+  for no_0_obj'[wp]: no_0_obj'
+  and ksInterruptState[wp]: "\<lambda>s. P (ksInterruptState s)"
+  and if_unsafe_then_cap'[wp]: "if_unsafe_then_cap'"
+  and valid_global_refs'[wp]: "valid_global_refs'"
+  and valid_arch_state'[wp]: "valid_arch_state'"
+  and valid_irq_node'[wp]: "\<lambda>s. valid_irq_node' (irq_node' s) s"
+  and valid_irq_states'[wp]: "\<lambda>s. valid_irq_states' s"
+  and valid_machine_state'[wp]: "\<lambda>s. valid_machine_state' s"
+  and ct_not_inQ[wp]: "ct_not_inQ"
+  and ct_idle_or_in_cur_domain'[wp]: "ct_idle_or_in_cur_domain'"
+  and valid_pde_mappings'[wp]: "\<lambda>s. valid_pde_mappings' s"
+  and pspace_domain_valid[wp]: "\<lambda>s. pspace_domain_valid s"
+  and irqs_masked'[wp]: "\<lambda>s. irqs_masked' s"
+  and cur_tcb'[wp]: "cur_tcb'"
+  and valid_dom_schedule'[wp]: "\<lambda>s. valid_dom_schedule' s"
+  and urz[wp]: untyped_ranges_zero'
+  (simp: comp_def tcb_cte_cases_def crunch_simps
+     wp: threadSet_not_inQ hoare_vcg_imp_lift' valid_irq_node_lift
+         setQueue_cur threadSet_ifunsafe'T threadSet_cur crunch_wps
+         cur_tcb_lift)
+
+lemma schedContextDonate_valid_pspace':
+  "\<lbrace>valid_pspace' and tcb_at' tcbPtr\<rbrace> schedContextDonate scPtr tcbPtr \<lbrace>\<lambda>_. valid_pspace'\<rbrace>"
+  by (wpsimp wp: schedContextDonate_valid_objs' simp: valid_pspace'_def)
+
+lemma schedContextDonate_if_live_then_nonz_cap':
+  "\<lbrace>\<lambda>s. if_live_then_nonz_cap' s \<and> valid_objs' s \<and>
+        ex_nonz_cap_to' tcbPtr s \<and> ex_nonz_cap_to' scPtr s\<rbrace>
+   schedContextDonate scPtr tcbPtr
+   \<lbrace>\<lambda>_. if_live_then_nonz_cap'\<rbrace>"
+  unfolding schedContextDonate_def
+  by (wpsimp wp: threadSet_iflive'T setSchedContext_iflive' hoare_vcg_all_lift threadSet_cap_to'
+           simp: conj_ac cong: conj_cong | wp hoare_drop_imps | fastforce simp: tcb_cte_cases_def)+
+
+lemma schedContextDonate_invs':
+  "\<lbrace>\<lambda>s. invs' s \<and> bound_sc_tcb_at' ((=) None) tcbPtr s \<and>
+        ex_nonz_cap_to' scPtr s \<and> ex_nonz_cap_to' tcbPtr s\<rbrace>
+   schedContextDonate scPtr tcbPtr
+   \<lbrace>\<lambda>_. invs'\<rbrace>"
+  apply (simp only: invs'_def valid_state'_def)
+  apply (rule_tac E="\<lambda>s. sc_at' scPtr s \<and> sym_refs (state_refs_of' s)"
+               in hoare_strengthen_pre_via_assert_backward)
+   apply (simp only: schedContextDonate_def)
+   apply (rule hoare_seq_ext[OF _ stateAssert_sp])
+   apply (rule hoare_K_bind)
+   apply (rule hoare_seq_ext[OF _ get_sc_sp'])
+   apply (rule_tac hoare_weaken_pre[OF hoare_pre_cont])
+   apply (clarsimp simp: obj_at'_def sym_refs_asrt_def)
+  apply (wp schedContextDonate_valid_pspace' schedContextDonate_vrq
+            schedContextDonate_valid_queues schedContextDonate_valid_queues'
+            schedContextDonate_valid_idle' schedContextDonate_if_live_then_nonz_cap')
+  apply (clarsimp simp: obj_at'_def projectKO_eq projectKO_sc)
+  apply (drule_tac ko=obj in sym_refs_ko_atD'[rotated, where p=scPtr])
+   apply (auto dest!: global'_sc_no_ex_cap
+               simp: ko_wp_at'_def obj_at'_def projectKO_eq projectKO_tcb
+                     pred_tcb_at'_def valid_idle'_def idle_tcb'_def refs_of_rev')
+  done
+
 end
