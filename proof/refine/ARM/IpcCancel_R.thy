@@ -1783,56 +1783,12 @@ lemma sched_context_cancel_yield_to_corres:
   apply clarsimp
   done
 
-lemma reprogram_timer_corres:
-   "corres dc \<top> \<top>
-      (modify (reprogram_timer_update (\<lambda>_. True)))
-      (setReprogramTimer True)"
-  unfolding setReprogramTimer_def
-  by (rule corres_modify) (simp add: state_relation_def swp_def)
-
-lemma release_queue_corres:
-  "corres (=) \<top> \<top> (gets release_queue) getReleaseQueue"
-  by (simp add: getReleaseQueue_def state_relation_def release_queue_relation_def)
-
 crunches ThreadDecls_H.suspend
   (* FIXME RT: VER-1016 *)
   for tcb_at'_better[wp]: "\<lambda>s. P (tcb_at' t s)"
   (rule: sch_act_simple_lift
      wp: crunch_wps
    simp: crunch_simps if_fun_split st_tcb_at'_def)
-
-lemma tcb_release_remove_corres:
-  "corres dc (pspace_aligned and pspace_distinct and tcb_at t) \<top>
-             (tcb_release_remove t) (tcbReleaseRemove t)"
-  unfolding tcb_release_remove_def tcbReleaseRemove_def tcb_sched_dequeue_def setReleaseQueue_def
-  apply clarsimp
-  apply (rule stronger_corres_guard_imp)
-    apply (rule_tac r'="(=)" in corres_split_deprecated)
-       apply (rule corres_split_deprecated)
-          apply (rule corres_add_noop_lhs2)
-          apply (rule corres_split_deprecated)
-             apply (rule threadSet_corres_noop; clarsimp simp: tcb_relation_def)
-            apply (rule corres_modify)
-            apply (auto simp: release_queue_relation_def state_relation_def swp_def)[1]
-           apply wp
-          apply wp
-         apply (rule corres_rel_imp)
-          apply (rule corres_when)
-           apply clarsimp
-          apply (rule reprogram_timer_corres)
-         apply metis
-        apply clarsimp
-        apply wp
-       apply (rule hoare_when_wp)
-       apply clarsimp
-       apply wp
-      apply (rule release_queue_corres)
-     apply wp
-    apply clarsimp
-    apply wpsimp
-   apply simp
-  apply (fastforce simp: state_relation_def tcb_at_cross)
-  done
 
 lemma (in delete_one) suspend_corres:
   "corres dc (einvs and tcb_at t) (invs' and tcb_at' t)
@@ -1891,20 +1847,6 @@ lemma no_refs_simple_strg':
   "st_tcb_at' simple' t s' \<and> P {} \<longrightarrow> st_tcb_at' (\<lambda>st. P (tcb_st_refs_of' st)) t s'"
   oops (* FIXME RT: not true any more; adjust simple'?
   by (fastforce elim!: pred_tcb'_weakenE)+ *)
-
-lemma tcbSchedDequeue_notksQ:
-  "\<lbrace>\<lambda>s. t' \<notin> set(ksReadyQueues s p)\<rbrace>
-    tcbSchedDequeue t
-   \<lbrace>\<lambda>_ s. t' \<notin> set(ksReadyQueues s p)\<rbrace>"
-  apply (simp add: tcbSchedDequeue_def  removeFromBitmap_conceal_def[symmetric])
-  apply wp
-        apply (rule hoare_pre_post, assumption)
-        apply (clarsimp simp: bitmap_fun_defs removeFromBitmap_conceal_def, wp, clarsimp)
-       apply wp+
-     apply clarsimp
-     apply (rule_tac Q="\<lambda>_ s. t' \<notin> set(ksReadyQueues s p)" in hoare_post_imp)
-      apply (wp | clarsimp)+
-  done
 
 lemma rescheduleRequired_oa_queued:
   "\<lbrace> (\<lambda>s. P (obj_at' (\<lambda>tcb. Q (tcbQueued tcb) (tcbDomain tcb) (tcbPriority tcb)) t' s)) and sch_act_simple\<rbrace>
@@ -2038,17 +1980,6 @@ lemma cancelIPC_queues[wp]:
   apply (fastforce intro: tcbFault_update_valid_queues)
   done
 
-(* FIXME: move to Schedule_R *)
-lemma tcbSchedDequeue_nonq[wp]:
-  "\<lbrace>Invariants_H.valid_queues and tcb_at' t and K (t = t')\<rbrace>
-   tcbSchedDequeue t
-   \<lbrace>\<lambda>_ s. t' \<notin> set (ksReadyQueues s (d, p))\<rbrace>"
-  apply (rule hoare_gen_asm)
-  apply (simp add: tcbSchedDequeue_def)
-  apply (wp threadGet_wp|simp)+
-  apply (fastforce simp: Invariants_H.valid_queues_def valid_queues_no_bitmap_def obj_at'_def projectKOs inQ_def)
-  done
-
 lemma rescheduleRequired_sch_act_simple_not_queued:
   "\<lbrace>\<lambda>s. t' \<notin> set (ksReadyQueues s (d, p)) \<and> sch_act_simple s\<rbrace>
    rescheduleRequired
@@ -2098,7 +2029,7 @@ lemma sts_ksQ_oaQ:
       done
   qed
 
-crunches schedContextCancelYieldTo, tcbReleaseRemove
+crunches schedContextCancelYieldTo
   for not_queued[wp]: "\<lambda>s. t' \<notin> set (ksReadyQueues s (d, p))"
   (wp: crunch_wps simp: crunch_simps)
 

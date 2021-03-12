@@ -113,6 +113,11 @@ crunches setThreadState, threadSet
 crunches tcbSchedDequeue, tcbSchedEnqueue
   for replies_of'[wp]: "\<lambda>s. P (replies_of' s)"
 
+crunches tcbSchedDequeue, tcbSchedEnqueue, tcbReleaseRemove
+  for obj_at'_reply[wp]: "\<lambda>s. P (obj_at' (Q :: reply \<Rightarrow> bool) p s)"
+  and obj_at'_ep[wp]: "\<lambda>s. P (obj_at' (Q :: endpoint \<Rightarrow> bool) p s)"
+  and obj_at'_sc[wp]: "\<lambda>s. Q (obj_at' (P :: sched_context \<Rightarrow> bool) p s)"
+
 lemma valid_objs_valid_tcbE':
   assumes "valid_objs' s"
           "tcb_at' t s"

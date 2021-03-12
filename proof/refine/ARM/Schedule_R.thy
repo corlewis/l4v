@@ -3023,4 +3023,221 @@ lemma schedContextDonate_invs':
                      pred_tcb_at'_def valid_idle'_def idle_tcb'_def refs_of_rev')
   done
 
+
+
+lemma tcbSchedDequeue_notksQ:
+  "tcbSchedDequeue t \<lbrace>\<lambda>s. t' \<notin> set(ksReadyQueues s p)\<rbrace>"
+  apply (simp add: tcbSchedDequeue_def)
+  apply (wp hoare_when_weak_wp)
+     apply (rule_tac Q="\<lambda>_ s. t' \<notin> set(ksReadyQueues s p)" in hoare_post_imp)
+      apply wpsimp+
+  done
+
+lemma tcbSchedDequeue_nonq:
+  "\<lbrace>valid_queues and tcb_at' t and K (t = t')\<rbrace>
+   tcbSchedDequeue t
+   \<lbrace>\<lambda>_ s. t' \<notin> set (ksReadyQueues s (d, p))\<rbrace>"
+  apply (rule hoare_gen_asm)
+  apply (simp add: tcbSchedDequeue_def)
+  apply (wpsimp wp: threadGet_wp)
+  apply (fastforce simp: valid_queues_def valid_queues_no_bitmap_def obj_at'_def inQ_def)
+  done
+
+
+
+crunches tcbReleaseRemove
+  for not_queued[wp]: "\<lambda>s. t' \<notin> set (ksReadyQueues s (d, p))"
+  (wp: crunch_wps simp: crunch_simps)
+
+lemma reprogram_timer_corres:
+   "corres dc \<top> \<top>
+      (modify (reprogram_timer_update (\<lambda>_. True)))
+      (setReprogramTimer True)"
+  unfolding setReprogramTimer_def
+  by (rule corres_modify) (simp add: state_relation_def swp_def)
+
+lemma release_queue_corres:
+  "corres (=) \<top> \<top> (gets release_queue) getReleaseQueue"
+  by (simp add: getReleaseQueue_def state_relation_def release_queue_relation_def)
+
+lemma tcb_release_remove_corres:
+  "corres dc (pspace_aligned and pspace_distinct and tcb_at t) \<top>
+             (tcb_release_remove t) (tcbReleaseRemove t)"
+  unfolding tcb_release_remove_def tcbReleaseRemove_def tcb_sched_dequeue_def setReleaseQueue_def
+  apply clarsimp
+  apply (rule stronger_corres_guard_imp)
+    apply (rule_tac r'="(=)" in corres_split_deprecated)
+       apply (rule corres_split_deprecated)
+          apply (rule corres_add_noop_lhs2)
+          apply (rule corres_split_deprecated)
+             apply (rule threadSet_corres_noop; clarsimp simp: tcb_relation_def)
+            apply (rule corres_modify)
+            apply (auto simp: release_queue_relation_def state_relation_def swp_def)[1]
+           apply wp
+          apply wp
+         apply (rule corres_rel_imp)
+          apply (rule corres_when)
+           apply clarsimp
+          apply (rule reprogram_timer_corres)
+         apply metis
+        apply clarsimp
+        apply wp
+       apply (rule hoare_when_wp)
+       apply clarsimp
+       apply wp
+      apply (rule release_queue_corres)
+     apply wp
+    apply clarsimp
+    apply wpsimp
+   apply simp
+  apply (fastforce simp: state_relation_def tcb_at_cross)
+  done
+
+lemma threadSet_valid_queues_no_state:
+  "\<lbrace>valid_queues and (\<lambda>s. \<forall>p. t \<notin> set (ksReadyQueues s p))\<rbrace>
+   threadSet f t
+   \<lbrace>\<lambda>_. valid_queues\<rbrace>"
+  apply (simp add: threadSet_def)
+  apply wp
+   apply (simp add: valid_queues_def valid_queues_no_bitmap_def' pred_tcb_at'_def)
+   apply (wp hoare_Ball_helper
+             hoare_vcg_all_lift
+             setObject_tcb_strongest)[1]
+  apply (wp getObject_tcb_wp)
+  apply (clarsimp simp: valid_queues_def valid_queues_no_bitmap_def' pred_tcb_at'_def)
+  apply (clarsimp simp: obj_at'_def)
+  done
+
+lemma threadSet_valid_queues'_no_state:
+  "(\<And>tcb. tcbQueued tcb = tcbQueued (f tcb)) \<Longrightarrow>
+   \<lbrace>valid_queues' and (\<lambda>s. \<forall>p. t \<notin> set (ksReadyQueues s p))\<rbrace>
+   threadSet f t
+   \<lbrace>\<lambda>_. valid_queues'\<rbrace>"
+  apply (simp add: valid_queues'_def threadSet_def obj_at'_real_def
+                split del: if_split)
+  apply (simp only: imp_conv_disj)
+  apply (wp hoare_vcg_all_lift hoare_vcg_disj_lift)
+     apply (wp setObject_ko_wp_at | simp add: objBits_simps')+
+    apply (wp getObject_tcb_wp updateObject_default_inv
+               | simp split del: if_split)+
+  apply (clarsimp simp: obj_at'_def ko_wp_at'_def projectKOs
+                        objBits_simps addToQs_def
+             split del: if_split cong: if_cong)
+  apply (fastforce simp: projectKOs inQ_def split: if_split_asm)
+  done
+
+lemma setQueue_valid_tcbs'[wp]:
+  "setQueue qdom prio q \<lbrace>valid_tcbs'\<rbrace>"
+  unfolding valid_tcbs'_def
+  apply (wpsimp wp: hoare_vcg_all_lift hoare_vcg_imp_lift')
+  done
+
+lemma removeFromBitmap_valid_tcbs'[wp]:
+  "removeFromBitmap tdom prio \<lbrace>valid_tcbs'\<rbrace>"
+  apply (wpsimp simp: valid_tcbs'_def bitmap_fun_defs)
+  done
+
+lemma tcbSchedDequeue_valid_tcbs'[wp]:
+  "tcbSchedDequeue tcbPtr \<lbrace>valid_tcbs'\<rbrace>"
+  apply (clarsimp simp: tcbSchedDequeue_def)
+  apply (rule hoare_seq_ext_skip, wpsimp)
+  apply (clarsimp simp: when_def)
+  apply (rule hoare_seq_ext_skip, wpsimp)+
+  apply (wpsimp wp: threadSet_valid_tcbs')
+  done
+
+lemma schedContextDonate_corres_helper:
+  "(case rv' of SwitchToThread x \<Rightarrow> when (x = t \<or> t = cur) rescheduleRequired
+                             | _ \<Rightarrow> when (t = cur) rescheduleRequired) =
+   (when (t = cur \<or> (case rv' of SwitchToThread x \<Rightarrow> t = x | _ \<Rightarrow> False)) rescheduleRequired)"
+  by (case_tac rv'; clarsimp simp: when_def)
+
+crunches tcbReleaseRemove
+  for valid_tcbs'[wp]: valid_tcbs'
+  (wp: crunch_wps)
+
+lemma schedContextDonate_corres:
+  "corres dc (invs and sc_at scp and tcb_at thread and weak_valid_sched_action)
+             (valid_objs' and valid_queues and valid_queues' and
+              valid_release_queue and valid_release_queue')
+             (sched_context_donate scp thread)
+             (schedContextDonate scp thread)"
+  apply add_sym_refs
+  apply (simp add: test_reschedule_def get_sc_obj_ref_def set_tcb_obj_ref_thread_set
+                   schedContextDonate_def sched_context_donate_def schedContextDonate_corres_helper)
+  apply (rule corres_stateAssert_assume)
+   apply (rule stronger_corres_guard_imp)
+     apply (rule corres_split_deprecated [OF _ get_sc_corres])
+       apply (rule corres_split_deprecated [OF _ corres_when2])
+           apply (rule corres_split_deprecated
+                      [OF threadset_corresT
+                          update_sc_no_reply_stack_update_ko_at'_corres
+                            [where f'="scTCB_update (\<lambda>_. Some thread)"]])
+                   apply (clarsimp simp: tcb_relation_def)
+                  apply (clarsimp simp: tcb_cap_cases_def)
+                 apply (clarsimp simp: tcb_cte_cases_def)
+                apply (clarsimp simp: sc_relation_def)
+               apply clarsimp
+              apply (clarsimp simp: objBits_def objBitsKO_def)
+             apply clarsimp
+            apply wpsimp
+           apply wpsimp
+          apply (clarsimp simp: sc_relation_def)
+         apply (rule corres_assert_opt_assume_l)
+         apply (rule corres_split_nor)
+            apply (rule corres_split_nor)
+               apply (rule corres_split_nor)
+                  apply (rule corres_split_eqr)
+                     apply (rule_tac r'=sched_act_relation in corres_split_deprecated)
+                        apply (rule corres_when)
+                         apply (case_tac rv; clarsimp simp: sched_act_relation_def sc_relation_def)
+                        apply (rule rescheduleRequired_corres_weak)
+                       apply (rule get_sa_corres)
+                      apply wpsimp
+                     apply wpsimp
+                    apply (rule gct_corres)
+                   apply wpsimp
+                  apply wpsimp
+                 apply (rule_tac x="the (sc_tcb sc)" and x'="the (scTCB sca)" in lift_args_corres)
+                  apply (rule threadset_corresT)
+                    apply (clarsimp simp: tcb_relation_def)
+                   apply (clarsimp simp: tcb_cap_cases_def)
+                  apply (clarsimp simp: tcb_cte_cases_def)
+                 apply (clarsimp simp: sc_relation_def)
+                apply (wpsimp wp: hoare_drop_imps)
+               apply (wpsimp wp: hoare_drop_imps
+                                 threadSet_valid_release_queue threadSet_valid_release_queue'
+                                 threadSet_valid_queues_no_state threadSet_valid_queues'_no_state)
+              apply (rule_tac x="the (sc_tcb sc)" and x'="the (scTCB sca)" in lift_args_corres)
+               apply (rule tcb_release_remove_corres)
+              apply (clarsimp simp: sc_relation_def)
+             apply (wpsimp | strengthen weak_valid_sched_action_strg)+
+            apply (rule_tac Q="\<lambda>_. tcb_at' (the (scTCB sca)) and valid_tcbs' and
+                                   valid_queues and valid_queues' and
+                                   valid_release_queue and valid_release_queue' and
+                                   (\<lambda>s. \<forall>d p. the (scTCB sca) \<notin> set (ksReadyQueues s (d, p)))"
+                         in hoare_strengthen_post[rotated])
+             apply (clarsimp simp: valid_release_queue'_def obj_at'_def)
+            apply (wpsimp wp: tcbReleaseRemove_valid_queues hoare_vcg_all_lift)
+           apply (rule_tac x="the (sc_tcb sc)" and x'="the (scTCB sca)" in lift_args_corres)
+            apply (rule tcbSchedDequeue_corres)
+           apply (clarsimp simp: sc_relation_def)
+          apply (wpsimp wp: hoare_vcg_all_lift hoare_vcg_imp_lift')
+         apply (wpsimp wp: tcbSchedDequeue_valid_queues hoare_vcg_all_lift
+                           tcbSchedDequeue_nonq)
+        apply (wpsimp wp: cong: if_cong)+
+    apply (frule invs_valid_objs)
+    apply (fastforce simp: valid_obj_def valid_sched_context_def valid_bound_obj_def obj_at_def)
+   apply (prop_tac "sc_at' scp s' \<and> tcb_at' thread s'")
+    apply (fastforce elim: sc_at_cross tcb_at_cross simp: state_relation_def)
+   apply clarsimp
+   apply (frule valid_objs'_valid_tcbs')
+   apply (rule valid_objsE', assumption)
+    apply (fastforce simp: obj_at'_def projectKO_eq projectKO_sc)
+   apply (clarsimp simp: valid_obj'_def valid_sched_context'_def obj_at'_def projectKOs)
+   apply (frule valid_objs'_valid_tcbs')
+   apply (fastforce simp: valid_obj'_def valid_tcb'_def)
+  apply (clarsimp simp: sym_refs_asrt_def)
+  done
+
 end

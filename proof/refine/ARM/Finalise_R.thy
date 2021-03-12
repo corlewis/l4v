@@ -2667,39 +2667,6 @@ lemma setSchedContext_pde_mappings'[wp]:
   "setSchedContext p sc \<lbrace>valid_pde_mappings'\<rbrace>"
   by (wp valid_pde_mappings_lift')
 
-lemma threadSet_valid_queues_no_state:
-  "\<lbrace>Invariants_H.valid_queues and (\<lambda>s. \<forall>p. t \<notin> set (ksReadyQueues s p))\<rbrace>
-   threadSet f t
-   \<lbrace>\<lambda>_. Invariants_H.valid_queues\<rbrace>"
-  apply (simp add: threadSet_def)
-  apply wp
-   apply (simp add: valid_queues_def valid_queues_no_bitmap_def' pred_tcb_at'_def)
-   apply (wp hoare_Ball_helper
-             hoare_vcg_all_lift
-             setObject_tcb_strongest)[1]
-  apply (wp getObject_tcb_wp)
-  apply (clarsimp simp: valid_queues_def valid_queues_no_bitmap_def' pred_tcb_at'_def)
-  apply (clarsimp simp: obj_at'_def)
-  done
-
-lemma threadSet_valid_queues'_no_state:
-  "(\<And>tcb. tcbQueued tcb = tcbQueued (f tcb)) \<Longrightarrow>
-   \<lbrace>valid_queues' and (\<lambda>s. \<forall>p. t \<notin> set (ksReadyQueues s p))\<rbrace>
-   threadSet f t
-   \<lbrace>\<lambda>_. valid_queues'\<rbrace>"
-  apply (simp add: valid_queues'_def threadSet_def obj_at'_real_def
-                split del: if_split)
-  apply (simp only: imp_conv_disj)
-  apply (wp hoare_vcg_all_lift hoare_vcg_disj_lift)
-     apply (wp setObject_ko_wp_at | simp add: objBits_simps')+
-    apply (wp getObject_tcb_wp updateObject_default_inv
-               | simp split del: if_split)+
-  apply (clarsimp simp: obj_at'_def ko_wp_at'_def projectKOs
-                        objBits_simps addToQs_def
-             split del: if_split cong: if_cong)
-  apply (fastforce simp: projectKOs inQ_def split: if_split_asm)
-  done
-
 lemma schedContextUnbindTCB_invs'_helper:
   "\<lbrace>\<lambda>s. invs' s \<and> scPtr \<noteq> idle_sc_ptr
                 \<and> ko_at' sc scPtr s
@@ -2732,10 +2699,6 @@ lemma schedContextUnbindTCB_invs'_helper:
                      valid_release_queue'_def valid_pspace'_def untyped_ranges_zero_inv_def
                      idle_tcb'_def state_refs_of'_def comp_def)
   done
-
-crunches tcbReleaseRemove, tcbSchedDequeue, rescheduleRequired
-  for obj_at'_sc[wp]: "\<lambda>s. Q (obj_at' (P :: sched_context \<Rightarrow> bool) p s)"
-  (wp: crunch_wps)
 
 lemma schedContextUnbindTCB_invs'[wp]:
   "\<lbrace>\<lambda>s. invs' s \<and> scPtr \<noteq> idle_sc_ptr\<rbrace> schedContextUnbindTCB scPtr \<lbrace>\<lambda>_. invs'\<rbrace>"
@@ -3028,7 +2991,7 @@ lemma schedContextUnbindTCB_valid_queues[wp]:
   unfolding schedContextUnbindTCB_def
   apply (wpsimp wp: threadSet_valid_queues tcbReleaseRemove_valid_queues
                     hoare_vcg_all_lift tcbSchedDequeue_valid_queues
-                    rescheduleRequired_oa_queued haskell_assert_wp
+                    rescheduleRequired_oa_queued tcbSchedDequeue_nonq
          | wp (once) hoare_drop_imps)+
   apply (auto simp: valid_obj'_def valid_sched_context'_def
               elim: valid_objs'_maxDomain valid_objs'_maxPriority
@@ -3458,26 +3421,6 @@ lemma setSchedContext_valid_tcbs'[wp]:
 crunches schedContextUnbindNtfn, schedContextMaybeUnbindNtfn
   for valid_tcbs'[wp]: valid_tcbs'
   (wp: setSchedContext_valid_tcbs')
-
-lemma setQueue_valid_tcbs'[wp]:
-  "setQueue qdom prio q \<lbrace>valid_tcbs'\<rbrace>"
-  unfolding valid_tcbs'_def
-  apply (wpsimp wp: hoare_vcg_all_lift hoare_vcg_imp_lift')
-  done
-
-lemma removeFromBitmap_valid_tcbs'[wp]:
-  "removeFromBitmap tdom prio \<lbrace>valid_tcbs'\<rbrace>"
-  apply (wpsimp simp: valid_tcbs'_def update_valid_tcb' bitmap_fun_defs)
-  done
-
-lemma tcbSchedDequeue_valid_tcbs'[wp]:
-  "tcbSchedDequeue tcbPtr \<lbrace>valid_tcbs'\<rbrace>"
-  apply (clarsimp simp: tcbSchedDequeue_def)
-  apply (rule hoare_seq_ext_skip, wpsimp)
-  apply (clarsimp simp: when_def)
-  apply (rule hoare_seq_ext_skip, wpsimp)+
-  apply (wpsimp wp: threadSet_valid_tcbs')
-  done
 
 lemma removeFromBitmap_valid_sched_context'[wp]:
   "removeFromBitmap tdom prio \<lbrace>valid_sched_context' sc\<rbrace>"
