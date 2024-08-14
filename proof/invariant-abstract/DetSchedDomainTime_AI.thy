@@ -92,6 +92,8 @@ locale DetSchedDomainTime_AI =
     "\<And>P i. arch_invoke_irq_handler i \<lbrace>\<lambda>s. P (domain_list s)\<rbrace>"
   assumes arch_invoke_irq_handler_domain_time_inv'[wp]:
     "\<And>P i. arch_invoke_irq_handler i \<lbrace>\<lambda>s. P (domain_time s)\<rbrace>"
+  assumes arch_prepare_next_domain_domain_list_inv'[wp]:
+    "\<And>P. arch_prepare_next_domain \<lbrace>\<lambda>s. P (domain_list s)\<rbrace>"
 
 crunch update_restart_pc
   for domain_list[wp]: "\<lambda>s. P (domain_list s)"

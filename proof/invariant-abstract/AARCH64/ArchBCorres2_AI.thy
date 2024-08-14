@@ -71,12 +71,12 @@ lemma make_arch_fault_msg_bcorres[wp,BCorres2_AI_assms]:
   "bcorres (make_arch_fault_msg a b) (make_arch_fault_msg a b)"
   by (cases a; simp ; wp)
 
-lemma  handle_arch_fault_reply_bcorres[wp,BCorres2_AI_assms]:
+lemma handle_arch_fault_reply_bcorres[wp,BCorres2_AI_assms]:
   "bcorres ( handle_arch_fault_reply a b c d) (handle_arch_fault_reply a b c d)"
   by (cases a; simp add: handle_arch_fault_reply_def; wp)
 
 crunch
-    arch_switch_to_thread,arch_switch_to_idle_thread
+    arch_switch_to_thread,arch_switch_to_idle_thread,arch_prepare_next_domain
   for (bcorres) bcorres[wp, BCorres2_AI_assms]: truncate_state
 
 end

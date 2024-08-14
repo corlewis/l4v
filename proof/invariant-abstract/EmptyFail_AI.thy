@@ -333,6 +333,8 @@ locale EmptyFail_AI_schedule = EmptyFail_AI_cap_revoke state_ext_t
     "empty_fail (get_thread_state ref :: (thread_state, 'state_ext) s_monad)"
   assumes guarded_switch_to_empty_fail[wp]:
     "empty_fail (guarded_switch_to thread :: (unit, 'state_ext) s_monad)"
+  assumes arch_prepare_next_domain_empty_fail[wp]:
+    "empty_fail (arch_prepare_next_domain :: (unit, 'state_ext) s_monad)"
 
 locale EmptyFail_AI_schedule_unit = EmptyFail_AI_schedule "TYPE(unit)"
 
@@ -340,7 +342,7 @@ context EmptyFail_AI_schedule_unit begin
 
 lemma schedule_empty_fail[wp]:
   "empty_fail (schedule :: (unit,unit) s_monad)"
-  apply (simp add: schedule_def)
+  apply (simp add: schedule_def_all)
   apply (wp disjI2)
   done
 
@@ -360,6 +362,7 @@ context EmptyFail_AI_schedule_det begin
 
 crunch schedule_choose_new_thread
   for (empty_fail) empty_fail[wp, intro!, simp]
+  (ignore: arch_prepare_next_domain)
 
 lemma schedule_empty_fail'[intro!, wp, simp]:
   "empty_fail (schedule :: (unit,det_ext) s_monad)"

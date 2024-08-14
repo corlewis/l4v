@@ -987,7 +987,7 @@ lemma set_vm_root_invs[wp]:
   by (wpsimp simp: if_distribR wp: get_cap_wp)
 
 crunch set_vm_root
-  for pred_tcb_at[wp]: "pred_tcb_at proj P t"
+  for pred_tcb_at[wp]: "\<lambda>s. P (pred_tcb_at proj Q t s)"
   (simp: crunch_simps)
 
 lemmas set_vm_root_typ_ats [wp] = abs_typ_at_lifts [OF set_vm_root_typ_at]
@@ -2687,7 +2687,7 @@ lemma set_vcpu_valid_reply_masters[wp]:
   by (rule valid_reply_masters_cte_lift) wp
 
 lemma set_vcpu_pred_tcb_at[wp]:
-  "\<lbrace>pred_tcb_at proj P t\<rbrace> set_vcpu p v \<lbrace>\<lambda>rv. pred_tcb_at proj P t\<rbrace>"
+  "set_vcpu p v \<lbrace>\<lambda>s. P (pred_tcb_at proj Q t s)\<rbrace>"
   apply (simp add: set_vcpu_def set_object_def)
   including no_pre apply wp
   apply (rule hoare_strengthen_post [OF get_object_sp])
@@ -3074,8 +3074,8 @@ lemma vcpu_switch_invs[wp]:
 
 crunch
   arm_context_switch, vcpu_update, vgic_update, vcpu_disable, vcpu_enable,
-  vcpu_restore, vcpu_switch, set_vm_root
-  for pred_tcb_at[wp]: "pred_tcb_at proj P t"
+  vcpu_restore, vcpu_switch, set_vm_root, vcpu_flush
+  for pred_tcb_at[wp]: "\<lambda>s. P (pred_tcb_at proj Q t s)"
   (simp: crunch_simps wp: crunch_wps mapM_x_wp)
 
 lemma set_vcpu_cte_wp_at[wp]:

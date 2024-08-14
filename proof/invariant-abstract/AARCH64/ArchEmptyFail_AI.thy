@@ -160,7 +160,7 @@ qed
 
 context Arch begin arch_global_naming
 crunch
-  cap_delete, choose_thread
+  cap_delete, choose_thread, arch_prepare_next_domain
   for (empty_fail) empty_fail[wp, EmptyFail_AI_assms]
 end
 

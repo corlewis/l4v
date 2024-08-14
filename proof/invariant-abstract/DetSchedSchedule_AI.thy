@@ -202,6 +202,7 @@ abbreviation valid_sched_except_blocked_2 where
 abbreviation valid_sched_except_blocked :: "det_ext state \<Rightarrow> bool" where
   "valid_sched_except_blocked s \<equiv> valid_sched_except_blocked_2 (ready_queues s) (ekheap s) (scheduler_action s) (cur_domain s) (kheap s) (cur_thread s) (idle_thread s)"
 
+\<comment> \<open>FIXME: remove\<close>
 declare valid_idle_etcb_lift[wp]
 
 lemma tcb_sched_action_enqueue_valid_sched[wp]:
@@ -881,6 +882,20 @@ locale DetSchedSchedule_AI =
     "\<And>i. arch_invoke_irq_handler i \<lbrace>valid_sched\<rbrace>"
   assumes arch_mask_irq_signal_valid_sched[wp]:
     "\<And>irq. arch_mask_irq_signal irq \<lbrace>valid_sched\<rbrace>"
+  assumes arch_prepare_next_domain_scheduler_action'[wp]:
+    "\<And>P. arch_prepare_next_domain \<lbrace>\<lambda>s. P (scheduler_action s)\<rbrace>"
+  assumes arch_prepare_next_domain_valid_etcbs'[wp]:
+    "arch_prepare_next_domain \<lbrace>valid_etcbs\<rbrace>"
+  assumes arch_prepare_next_domain_valid_queues'[wp]:
+    "arch_prepare_next_domain \<lbrace>valid_queues\<rbrace>"
+  assumes arch_prepare_next_domain_valid_blocked[wp]:
+    "arch_prepare_next_domain \<lbrace>valid_blocked\<rbrace>"
+  assumes arch_prepare_next_domain_ct_in_q[wp]:
+    "arch_prepare_next_domain \<lbrace>ct_in_q\<rbrace>"
+  assumes arch_prepare_next_domain_etcb_at'[wp]:
+    "\<And>P t. arch_prepare_next_domain \<lbrace>etcb_at P t\<rbrace>"
+  assumes arch_prepare_next_domain_valid_list'[wp]:
+    "arch_prepare_next_domain \<lbrace>valid_list\<rbrace>"
 
 context DetSchedSchedule_AI begin
 

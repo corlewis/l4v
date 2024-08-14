@@ -291,7 +291,7 @@ lemma handle_invocation_valid_vspace_objs'[wp]:
 
 crunch activate_thread,switch_to_thread, handle_hypervisor_fault,
        switch_to_idle_thread, handle_call, handle_recv, handle_reply,
-       handle_send, handle_yield, handle_interrupt
+       handle_send, handle_yield, handle_interrupt, arch_prepare_next_domain
   for valid_vspace_objs'[wp]: "valid_vspace_objs'"
   (simp: crunch_simps wp: crunch_wps OR_choice_weak_wp select_ext_weak_wp
       ignore: without_preemption getActiveIRQ resetTimer ackInterrupt
@@ -303,9 +303,8 @@ lemma handle_event_valid_vspace_objs'[wp]:
 
 lemma schedule_valid_vspace_objs'[wp]:
   "\<lbrace>valid_vspace_objs'\<rbrace> schedule :: (unit,unit) s_monad \<lbrace>\<lambda>_. valid_vspace_objs'\<rbrace>"
-  apply (simp add: schedule_def allActiveTCBs_def)
-  apply wp
-  apply simp
+  apply (simp add: schedule_def_all)
+  apply (wpsimp wp: hoare_drop_imps)
   done
 
 lemma call_kernel_valid_vspace_objs'[wp]:

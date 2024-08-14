@@ -28,6 +28,8 @@ locale BCorres2_AI =
   assumes arch_switch_to_idle_thread_bcorres[wp]:
     "bcorres (arch_switch_to_idle_thread :: 'a state \<Rightarrow> _)
         arch_switch_to_idle_thread"
+  assumes arch_prepare_next_domain_bcorres[wp]:
+    "bcorres (arch_prepare_next_domain :: 'a state \<Rightarrow> _) arch_prepare_next_domain"
 
 crunch deleting_irq_handler
   for (bcorres) bcorres[wp]: truncate_state
@@ -482,18 +484,45 @@ lemma get_before_assert_opt:
   apply (simp add: ext exec_get)
   done
 
-lemma s_bcorres_get_left:
+lemma s_bcorres_get_pre:
   "(s_bcorres_underlying t (get >>= f) g s)
     = (s_bcorres_underlying t (f s) g s)"
-  by (simp add: s_bcorres_underlying_def exec_get)
+  "(s_bcorres_underlying t f' (get >>= g') s)
+    = (s_bcorres_underlying t f' (g' (t s)) s)"
+  by (simp add: s_bcorres_underlying_def exec_get)+
 
 lemma get_outside_alternative:
   "alternative (get >>= f) g
     = do s \<leftarrow> get; alternative (f s) g od"
   by (simp add: alternative_def exec_get fun_eq_iff)
 
-lemmas schedule_unfold_all = schedule_def allActiveTCBs_def
+lemmas schedule_unfold_all = schedule_def_all allActiveTCBs_def
                         get_thread_state_def thread_get_def getActiveTCB_def
+
+lemma alternative_fst_s_bcorres:
+  "\<lbrakk>s_bcorres_underlying t f f' s\<rbrakk> \<Longrightarrow> s_bcorres_underlying t f (f' \<sqinter> g') s"
+  by (fastforce simp: alternative_def bcorres_underlying_def s_bcorres_underlying_def)
+
+lemma alternative_snd_s_bcorres:
+  "\<lbrakk>s_bcorres_underlying t g g' s\<rbrakk> \<Longrightarrow> s_bcorres_underlying t g (f' \<sqinter> g') s"
+  by (fastforce simp: alternative_def bcorres_underlying_def s_bcorres_underlying_def)
+
+lemma s_bcorres_underlying_select_pres:
+  "s_bcorres_underlying t (select A >>= f) g s = (\<forall>x\<in>A. s_bcorres_underlying t (f x) g s)"
+  "\<exists>y\<in>B. s_bcorres_underlying t f' (g' y) s \<Longrightarrow> s_bcorres_underlying t f' (select B >>= g') s"
+  by (auto simp: s_bcorres_underlying_def select_def bind_def split_def image_subset_iff)
+
+lemma pre_choose_thread_unit_s_bcorres_triv:
+  "s_bcorres (return ()) pre_choose_thread_unit s"
+  by (clarsimp simp: pre_choose_thread_unit_def alternative_fst_s_bcorres return_s_bcorres_underlying)
+
+lemma guarded_switch_thread_s_bcorres_lift:
+  "\<lbrakk>\<exists>y. get_tcb t s = Some y \<and> runnable (tcb_state y) \<Longrightarrow> s_bcorres (switch_to_thread t) f s\<rbrakk>
+   \<Longrightarrow> s_bcorres (guarded_switch_to t) f s"
+  apply (clarsimp simp: bcorres_underlying_def s_bcorres_underlying_def)
+  apply (drule guarded_sub_switch)
+  apply auto
+  done
 
 context BCorres2_AI begin
 
@@ -504,30 +533,22 @@ lemma switch_thread_bcorreses:
   apply (wp | simp)+
   done
 
-lemma guarded_switch_bcorres: "s_bcorres (guarded_switch_to t :: 'a state \<Rightarrow> _) schedule s"
+lemma guarded_switch_bcorres:
+  "s_bcorres (guarded_switch_to t :: 'a state \<Rightarrow> _) schedule s"
   using switch_thread_bcorreses(2)[where t=t]
-  apply (clarsimp simp: schedule_unfold_all s_bcorres_underlying_def
-                        in_monad in_select
-            split del: if_split)
-  apply (drule guarded_sub_switch)
-  apply (rule_tac x=t in exI, clarsimp split del: if_split)
-  apply (drule_tac s=s in drop_sbcorres_underlying)
-  apply (clarsimp simp: s_bcorres_underlying_def)
-  apply (auto intro!: alternative_second)
+  apply (clarsimp simp: schedule_def choose_thread_unit_def gets_def s_bcorres_get_pre
+                        in_monad in_select)
+  apply (intro conjI impI; (rule alternative_snd_s_bcorres)?)
+  apply (rule s_bcorres_underlying_split[OF _ pre_choose_thread_unit_s_bcorres_triv, simplified]
+              alternative_fst_s_bcorres
+              guarded_switch_thread_s_bcorres_lift
+              s_bcorres_underlying_select_pres
+         | clarsimp simp: allActiveTCBs_def gets_def s_bcorres_get_pre
+         | fastforce intro: switch_thread_bcorreses drop_sbcorres_underlying
+                      simp: getActiveTCB_def split: option.splits)+
   done
 
 end
-
-lemma choose_thread_bcorres: "BCorres2_AI TYPE(det_ext)
-    \<Longrightarrow> s_bcorres choose_thread schedule s"
-  apply (frule BCorres2_AI.switch_thread_bcorreses(1))
-  apply (simp add: choose_thread_def gets_def s_bcorres_get_left
-                   BCorres2_AI.guarded_switch_bcorres)
-  apply (clarsimp simp: schedule_def s_bcorres_underlying_def)
-  apply (drule_tac s=s in drop_sbcorres_underlying)
-  apply (clarsimp simp: s_bcorres_underlying_def)
-  apply (auto intro!: alternative_second simp: exec_gets)
-  done
 
 lemma tcb_sched_action_bcorres:
   "bcorres (tcb_sched_action a b) (return ())"
@@ -540,31 +561,51 @@ lemma if_s_bcorres_underlying[wp]:
   \<Longrightarrow> s_bcorres_underlying t (if P then f else g) (if P then f' else g') s"
   by (simp add: return_s_bcorres_underlying)
 
+lemma choose_thread_unit_s_bcorres:
+  "BCorres2_AI TYPE(det_ext) \<Longrightarrow> s_bcorres choose_thread choose_thread_unit s"
+  unfolding choose_thread_def choose_thread_unit_def
+  apply (simp add: gets_def s_bcorres_get_pre)
+  apply (intro conjI impI)
+   apply (rule alternative_snd_s_bcorres)
+   apply (rule drop_sbcorres_underlying)
+   apply (erule BCorres2_AI.switch_thread_bcorreses)
+  apply (rule alternative_fst_s_bcorres
+              guarded_switch_thread_s_bcorres_lift
+              s_bcorres_underlying_select_pres
+         | clarsimp simp: allActiveTCBs_def gets_def s_bcorres_get_pre
+         | fastforce intro: BCorres2_AI.switch_thread_bcorreses drop_sbcorres_underlying
+                      simp: getActiveTCB_def split: option.splits)+
+  done
+
+lemma pre_choose_thread_unit_s_bcorres:
+  "BCorres2_AI TYPE(det_ext) \<Longrightarrow>
+   s_bcorres (when (domain_time s = 0) (do y <- arch_prepare_next_domain; next_domain od))
+             pre_choose_thread_unit s"
+  unfolding pre_choose_thread_unit_def
+  apply (clarsimp simp: when_def alternative_fst_s_bcorres[OF return_s_bcorres_underlying])
+  apply (rule alternative_snd_s_bcorres)
+  apply (rule s_bcorres_underlying_split[where f'=arch_prepare_next_domain and g'="\<lambda>_. return ()", simplified])
+   apply (fastforce simp: s_bcorres_underlying_def simpler_modify_def return_def next_domain_def Let_def)
+  apply (erule BCorres2_AI.arch_prepare_next_domain_bcorres[THEN drop_sbcorres_underlying])
+  done
+
 lemma schedule_choose_new_thread_bcorres1:
   "BCorres2_AI TYPE(det_ext) \<Longrightarrow> bcorres schedule_choose_new_thread schedule"
-  unfolding schedule_choose_new_thread_def
-  apply (clarsimp simp: bcorres_underlying_def)
-  apply (simp add: schedule_det_ext_ext_def s_bcorres_get_left
-                   gets_def get_thread_state_def thread_get_def gets_the_def
-                   bind_assoc get_before_assert_opt ethread_get_def schedule_switch_thread_fastfail_def
-                   when_def)
-  apply (rule conjI; clarsimp)
-   apply (rule s_bcorres_underlying_split[where g'="\<lambda>_. return ()",
-                  OF _ choose_thread_bcorres, simplified]
-               s_bcorres_underlying_split[where f'="return ()", simplified]
-         | fastforce simp: s_bcorres_underlying_def set_scheduler_action_def
-                           when_def exec_gets simpler_modify_def return_def
-                           next_domain_def Let_def)+
+  unfolding schedule_def schedule_choose_new_thread_def
+  apply (clarsimp simp: bcorres_underlying_def s_bcorres_get_pre gets_def)
+  apply (intro conjI impI; (rule alternative_snd_s_bcorres)?)
+    apply (rule s_bcorres_underlying_split[OF _ pre_choose_thread_unit_s_bcorres]
+                s_bcorres_underlying_split[where g'="\<lambda>_. return ()",
+                      OF _ choose_thread_unit_s_bcorres, simplified]
+           | fastforce simp: s_bcorres_underlying_def set_scheduler_action_def simpler_modify_def return_def)+
   done
 
 lemma schedule_bcorres1:
   notes bsplits =
           s_bcorres_underlying_split[where g'="\<lambda>_. return ()",
-                                     OF _ choose_thread_bcorres, simplified]
-          s_bcorres_underlying_split[where g'="\<lambda>_. return ()",
                                      OF _ BCorres2_AI.guarded_switch_bcorres, simplified]
           s_bcorres_underlying_split[where f'="return ()", simplified]
-  notes bdefs = schedule_det_ext_ext_def s_bcorres_get_left
+  notes bdefs = schedule_det_ext_ext_def s_bcorres_get_pre
                 gets_def get_thread_state_def thread_get_def gets_the_def
                 bind_assoc get_before_assert_opt ethread_get_def
                 schedule_switch_thread_fastfail_def when_def
@@ -582,10 +623,9 @@ lemma schedule_bcorres1:
   apply (split scheduler_action.split, intro conjI impI)
     (* resume current *)
     subgoal for s
-      apply (clarsimp simp: s_bcorres_underlying_def schedule_def allActiveTCBs_def
-                            in_monad in_select getActiveTCB_def
+      apply (clarsimp simp: s_bcorres_underlying_def schedule_def
+                            in_monad getActiveTCB_def
                        split: if_split)
-      apply (fastforce simp add: switch_to_idle_thread_def in_monad in_select ex_bool_eq)
       done
    (* switch to *)
    subgoal for s cttcb

@@ -48,7 +48,7 @@ lemma idle_strg:
 
 crunch
   vcpu_update, vgic_update, vgic_update_lr, vcpu_restore_reg_range, vcpu_save_reg_range,
-  vcpu_enable, vcpu_disable, vcpu_save, vcpu_restore, vcpu_switch, vcpu_save
+  vcpu_enable, vcpu_disable, vcpu_save, vcpu_restore, vcpu_switch, vcpu_save, vcpu_flush
   for it[wp]: "\<lambda>s. P (idle_thread s)"
   and ct[wp]: "\<lambda>s. P (cur_thread s)"
   (wp: mapM_x_wp mapM_wp subset_refl)
@@ -100,6 +100,20 @@ lemma stt_invs [wp,Schedule_AI_assms]:
   apply clarsimp
   apply (simp add: is_tcb_def)
   done
+
+lemma vcpu_invalidate_active_invs[wp]:
+  "\<lbrace>invs\<rbrace> vcpu_invalidate_active \<lbrace>\<lambda>_. invs\<rbrace>"
+  unfolding vcpu_invalidate_active_def
+  by (wpsimp simp: cur_vcpu_at_def | strengthen invs_current_vcpu_update')+
+
+crunch arch_prepare_next_domain
+  for ct[wp, Schedule_AI_assms]: "\<lambda>s. P (cur_thread s)"
+  and activatable[wp, Schedule_AI_assms]: "ct_in_state activatable"
+  and pred_tcb_at[wp, Schedule_AI_assms]: "\<lambda>s. P (pred_tcb_at proj Q t s)"
+  and valid_idle[wp, Schedule_AI_assms]: valid_idle
+  and invs[wp, Schedule_AI_assms]: invs
+  (wp: crunch_wps ct_in_state_thread_state_lift)
+
 end
 
 interpretation Schedule_AI_U?: Schedule_AI_U

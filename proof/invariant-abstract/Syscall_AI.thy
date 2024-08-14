@@ -62,18 +62,20 @@ lemma schedule_invs[wp]: "\<lbrace>invs\<rbrace> (Schedule_A.schedule :: (unit,d
 
 lemma schedule_choose_new_thread_ct_activatable[wp]:
   "\<lbrace> invs \<rbrace> schedule_choose_new_thread \<lbrace>\<lambda>_. ct_in_state activatable \<rbrace>"
-  proof -
+proof -
   have P: "\<And>t s. ct_in_state activatable (cur_thread_update (\<lambda>_. t) s) = st_tcb_at activatable t s"
     by (fastforce simp: ct_in_state_def st_tcb_at_def intro: obj_at_pspaceI)
   show ?thesis
-  unfolding schedule_choose_new_thread_def choose_thread_def guarded_switch_to_def
+    unfolding schedule_choose_new_thread_def choose_thread_def guarded_switch_to_def
     apply (simp add: P set_scheduler_action_def guarded_switch_to_def choose_thread_def
                              next_domain_def Let_def tcb_sched_action_def set_tcb_queue_def
                              get_tcb_queue_def ethread_get_def bind_assoc)
     apply (wpsimp wp: stt_activatable stit_activatable gts_wp)+
-    apply (force simp: ct_in_state_def pred_tcb_at_def obj_at_def invs_def valid_state_def
-                       valid_idle_def split: if_split_asm)+
-  done
+      apply (rule hoare_post_imp[where Q'="\<lambda>_. invs"])
+       apply (clarsimp elim!: st_tcb_weakenE)
+      apply wpsimp+
+    apply (clarsimp elim!: st_tcb_weakenE)
+    done
 qed
 
 lemma guarded_switch_to_ct_in_state_activatable[wp]:

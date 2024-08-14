@@ -31,7 +31,7 @@ crunch
   arch_invoke_irq_control, arch_get_sanitise_register_info,
   prepare_thread_delete, handle_hypervisor_fault, make_arch_fault_msg,
   arch_post_modify_registers, arch_post_cap_deletion, handle_vm_fault,
-  arch_invoke_irq_handler
+  arch_invoke_irq_handler, arch_prepare_next_domain
   for domain_list_inv[wp, DetSchedDomainTime_AI_assms]: "\<lambda>s. P (domain_list s)"
   (simp: crunch_simps isFpuEnable_def wp: mapM_wp' transfer_caps_loop_pres)
 

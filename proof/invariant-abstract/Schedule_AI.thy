@@ -17,6 +17,7 @@ abbreviation
 
 locale Schedule_AI =
     fixes state_ext :: "('a::state_ext) itself"
+    fixes some_t :: "'t itself"
     assumes dmo_mapM_storeWord_0_invs[wp]:
       "\<And>S. valid invs (do_machine_op (mapM (\<lambda>p. storeWord p 0) S)) (\<lambda>_. (invs :: 'a state \<Rightarrow> bool))"
     assumes arch_stt_invs [wp]:
@@ -28,7 +29,19 @@ locale Schedule_AI =
     assumes stit_invs [wp]:
       "\<lbrace>invs\<rbrace> switch_to_idle_thread \<lbrace>\<lambda>rv. (invs :: 'a state \<Rightarrow> bool)\<rbrace>"
     assumes stit_activatable:
-      "\<lbrace>invs\<rbrace> switch_to_idle_thread \<lbrace>\<lambda>rv . (ct_in_state activatable :: 'a state \<Rightarrow> bool)\<rbrace>"
+      "\<lbrace>invs\<rbrace> switch_to_idle_thread \<lbrace>\<lambda>rv. (ct_in_state activatable :: 'a state \<Rightarrow> bool)\<rbrace>"
+    assumes arch_prepare_next_domain_ct[wp]:
+      "\<And>P. arch_prepare_next_domain \<lbrace>\<lambda>s :: 'a state. P (cur_thread s)\<rbrace>"
+    assumes arch_prepare_next_domain_activatable[wp]:
+      "arch_prepare_next_domain \<lbrace>ct_in_state activatable :: 'a state \<Rightarrow> bool\<rbrace>"
+    assumes arch_prepare_next_domain_pred_tcb_at[wp]:
+      "\<And>(proj :: itcb \<Rightarrow> 't) P Q t. arch_prepare_next_domain \<lbrace>\<lambda>s :: 'a state. P (pred_tcb_at proj Q t s)\<rbrace>"
+    assumes arch_prepare_next_domain_st_tcb_at[wp]:
+      "\<And>P Q t. arch_prepare_next_domain \<lbrace>\<lambda>s :: 'a state. P (st_tcb_at Q t s)\<rbrace>"
+    assumes arch_prepare_next_domain_valid_idle[wp]:
+      "arch_prepare_next_domain \<lbrace>valid_idle :: 'a state \<Rightarrow> bool\<rbrace>"
+    assumes arch_prepare_next_domain_invs[wp]:
+      "arch_prepare_next_domain \<lbrace>invs :: 'a state \<Rightarrow> bool\<rbrace>"
 
 crunch schedule_switch_thread_fastfail
   for inv[wp]: P
@@ -172,10 +185,10 @@ locale Schedule_AI_U = Schedule_AI "TYPE(unit)"
 
 lemma (in Schedule_AI_U) schedule_invs[wp]:
   "\<lbrace>invs\<rbrace> (Schedule_A.schedule :: (unit,unit) s_monad) \<lbrace>\<lambda>rv. invs\<rbrace>"
-  apply (simp add: Schedule_A.schedule_def allActiveTCBs_def)
-  apply (wp OR_choice_weak_wp dmo_invs thread_get_inv
+  apply (simp add: Schedule_A.schedule_def_all cong: if_cong)
+  apply (wp OR_choice_weak_wp dmo_invs thread_get_inv hoare_drop_imps
             do_machine_op_tcb select_ext_weak_wp when_def
-          | clarsimp simp: getActiveTCB_def get_tcb_def)+
+         | clarsimp simp: getActiveTCB_def get_tcb_def)+
   done
 
 (* FIXME - move *)
@@ -187,28 +200,22 @@ lemma ct_in_state_trans_update[simp]: "ct_in_state st (trans_state f s) = ct_in_
   apply (simp add: ct_in_state_def)
   done
 
+lemma getActiveTCB_None_st_tcb_at:
+  "(getActiveTCB t s = None) = (\<not> st_tcb_at runnable t s)"
+  by (auto simp: getActiveTCB_def get_tcb_def pred_tcb_at_def obj_at_def split: option.splits kernel_object.splits)
+
 lemma (in Schedule_AI_U) schedule_ct_activateable[wp]:
   "\<lbrace>invs\<rbrace> (Schedule_A.schedule :: (unit,unit) s_monad) \<lbrace>\<lambda>rv. ct_in_state activatable \<rbrace>"
-  proof -
-  have P: "\<And>t s. ct_in_state activatable (cur_thread_update (\<lambda>_. t) s) = st_tcb_at activatable t s"
-    by (fastforce simp: ct_in_state_def pred_tcb_at_def intro: obj_at_pspaceI)
+proof -
   have Q: "\<And>s. invs s \<longrightarrow> idle_thread s = cur_thread s \<longrightarrow> ct_in_state activatable s"
     apply (clarsimp simp: ct_in_state_def dest!: invs_valid_idle)
     apply (clarsimp simp: valid_idle_def pred_tcb_def2)
     done
   show ?thesis
-    apply (simp add: Schedule_A.schedule_def allActiveTCBs_def)
-    apply (wp select_ext_weak_wp stt_activatable stit_activatable
-           | simp add: P Q)+
-    apply (clarsimp simp: getActiveTCB_def ct_in_state_def)
-    apply (rule conjI)
-     apply clarsimp
-     apply (case_tac "get_tcb (cur_thread s) s", simp_all add: ct_in_state_def)
-     apply (drule get_tcb_SomeD)
-     apply (clarsimp simp: pred_tcb_at_def obj_at_def split: if_split_asm)
-    apply (case_tac "get_tcb x s", simp_all)
-    apply (drule get_tcb_SomeD)
-    apply (clarsimp simp: pred_tcb_at_def obj_at_def split: if_split_asm)
+    apply (simp add: Schedule_A.schedule_def_all cong: if_cong)
+    apply (wpsimp wp: select_ext_weak_wp stt_activatable stit_activatable hoare_vcg_imp_lift' hoare_vcg_all_lift
+                simp: Q getActiveTCB_None_st_tcb_at)
+    apply (auto simp: getActiveTCB_def ct_in_state_def pred_tcb_def2 split: option.splits)
     done
 qed
 
