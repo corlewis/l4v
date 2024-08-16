@@ -1220,7 +1220,7 @@ lemma (in delete_one) suspend_corres:
             apply (simp add: AARCH64.nextInstructionRegister_def AARCH64.faultRegister_def
                              AARCH64_H.nextInstructionRegister_def AARCH64_H.faultRegister_def)
             apply (simp add: AARCH64_H.Register_def)
-            apply (subst unit_dc_is_eq)
+            apply (fold dc_def, subst unit_dc_is_eq)
             apply (rule corres_underlying_trivial)
             apply (wpsimp simp: AARCH64.setRegister_def AARCH64.getRegister_def)
            apply (rule corres_return_trivial)
@@ -2328,7 +2328,7 @@ lemma suspend_unqueued:
   by (wpsimp simp: comp_def wp: tcbSchedDequeue_not_tcbQueued)
 
 crunch vcpuInvalidateActive
-  for no_vcpu[wp]: "obj_at' (P::'a:: no_vcpu \<Rightarrow> bool) t"
+  for no_vcpu[wp]: "\<lambda>s. P (obj_at' (P'::'a:: no_vcpu \<Rightarrow> bool) t s)"
 
 lemma asUser_tcbQueued[wp]:
   "asUser t' f \<lbrace>\<lambda>s. Q (obj_at' (P \<circ> tcbQueued) t s)\<rbrace>"
@@ -2342,13 +2342,13 @@ lemma archThreadSet_tcbQueued[wp]:
 
 lemma dissociateVCPUTCB_unqueued[wp]:
   "dissociateVCPUTCB vcpu tcb \<lbrace>obj_at' (Not \<circ> tcbQueued) t\<rbrace>"
-  unfolding dissociateVCPUTCB_def archThreadGet_def by wpsimp
+  unfolding dissociateVCPUTCB_def archThreadGet_def by (wpsimp simp: o_def)
 
 lemmas asUser_st_tcb_at'[wp] = asUser_obj_at [folded st_tcb_at'_def]
 lemmas setObject_vcpu_st_tcb_at'[wp] =
-  setObject_vcpu_obj_at'_no_vcpu [where P'="P o tcbState" for P, folded st_tcb_at'_def]
+  setObject_vcpu_obj_at'_no_vcpu [where P'="P' o tcbState" for P', folded st_tcb_at'_def]
 lemmas vcpuInvalidateActive_st_tcb_at'[wp] =
-  vcpuInvalidateActive_no_vcpu [where P="P o tcbState" for P, folded st_tcb_at'_def]
+  vcpuInvalidateActive_no_vcpu [where P'="P' o tcbState" for P', folded st_tcb_at'_def]
 
 lemma archThreadSet_st_tcb_at'[wp]:
   "archThreadSet f tcb \<lbrace>st_tcb_at' P t\<rbrace>"
