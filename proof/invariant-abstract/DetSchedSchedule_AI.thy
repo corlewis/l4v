@@ -1245,15 +1245,12 @@ lemma tcb_sched_enqueue_in_cur_domain:
   done
 
 crunch next_domain
-  for valid_etcbs: valid_etcbs (simp: Let_def)
-crunch next_domain
-  for valid_queues: valid_queues (simp: Let_def)
-crunch next_domain
-  for valid_blocked: valid_blocked (simp: Let_def)
-crunch next_domain
-  for ct_in_q: ct_in_q (simp: Let_def ct_in_q_def)
-crunch next_domain
-  for ct_not_in_q: ct_not_in_q (simp: Let_def)
+  for valid_etcbs[wp]: valid_etcbs
+  and valid_queues[wp]: valid_queues
+  and valid_blocked[wp]: valid_blocked
+  and ct_in_q[wp]: ct_in_q
+  and ct_not_in_q[wp]: ct_not_in_q
+  (simp: Let_def ct_in_q_def)
 
 lemma next_domain_valid_sched_action:
   "\<lbrace>\<lambda>s. scheduler_action s = choose_new_thread\<rbrace> next_domain \<lbrace>\<lambda>_. valid_sched_action\<rbrace>"
@@ -1432,8 +1429,7 @@ lemma schedule_choose_new_thread_valid_sched:
                  wp: set_scheduler_action_rct_valid_sched choose_thread_ct_not_queued
                      choose_thread_ct_activatable choose_thread_cur_dom_or_idle
                      hoare_vcg_disj_lift)+
-    apply (wpsimp wp: next_domain_valid_sched_action next_domain_valid_etcbs
-                      next_domain_valid_queues next_domain_valid_blocked next_domain_ct_in_q)+
+    apply (wpsimp wp: next_domain_valid_sched_action)+
   done
 
 lemma schedule_valid_sched:
