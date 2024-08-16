@@ -16,10 +16,16 @@ declare hoare_weak_lift_imp[wp_split del]
 (* Levity: added (20090713 10:04:12) *)
 declare sts_rel_idle [simp]
 
-lemma corres_if2:
+lemma corres_if:
  "\<lbrakk> G = G'; G \<Longrightarrow> corres r P P' a c; \<not> G' \<Longrightarrow> corres r Q Q' b d \<rbrakk>
     \<Longrightarrow> corres r (if G then P else Q) (if G' then P' else Q') (if G then a else b) (if G' then c else d)"
   by simp
+
+lemmas corres_if2 = corres_if[unfolded if_apply_def2]
+lemmas corres_when =
+    corres_if2[where b="return ()" and d="return ()"
+                and Q="\<top>" and Q'="\<top>" and r=dc, simplified,
+                folded when_def]
 
 lemma findM_awesome':
   assumes x: "\<And>x xs. suffix (x # xs) xs' \<Longrightarrow>
@@ -46,7 +52,7 @@ proof -
     apply (rule corres_guard_imp)
       apply (rule corres_split[OF x])
          apply assumption
-        apply (rule corres_if2)
+        apply (rule corres_if)
           apply (case_tac ra, clarsimp+)[1]
          apply (rule corres_trivial, clarsimp)
          apply (case_tac ra, simp_all)[1]
@@ -1880,24 +1886,69 @@ lemma nextDomain_invs_no_cicd':
                         all_invs_but_ct_idle_or_in_cur_domain'_def)
   done
 
+lemma vcpuInvalidateActive_corres[corres]:
+  "corres dc \<top> no_0_obj' vcpu_invalidate_active vcpuInvalidateActive"
+  unfolding vcpuInvalidateActive_def vcpu_invalidate_active_def
+  apply (corresKsimp  corres: vcpuDisable_corres
+                    corresK: corresK_modifyT
+                       simp: modifyArchState_def)
+  apply (clarsimp simp: state_relation_def arch_state_relation_def)
+  done
+
+lemma vcpuFlush_corres:
+  "corres dc valid_arch_state (pspace_aligned' and pspace_distinct' and no_0_obj')
+     vcpu_flush vcpuFlush"
+  unfolding vcpu_flush_def vcpuFlush_def
+  apply (rule stronger_corres_guard_imp)
+    apply (rule corres_split[OF corres_gets_current_vcpu])
+      apply clarsimp
+      apply (rule corres_when, simp)
+      apply clarsimp
+      apply (rule corres_split[OF vcpuSave_corres])
+        apply (rule vcpuInvalidateActive_corres)
+       apply wpsimp+
+   apply (clarsimp simp: valid_arch_state_def obj_at_def cur_vcpu_def in_omonad)
+  apply (clarsimp simp: state_relation_def arch_state_relation_def)
+  apply (rule aligned_distinct_relation_vcpu_atI'; assumption?)
+  apply (clarsimp simp: valid_arch_state_def obj_at_def cur_vcpu_def in_omonad)
+  done
+
+lemma vcpu_flush_invs[wp]:
+  "vcpu_flush \<lbrace>invs\<rbrace>"
+  unfolding vcpu_flush_def
+  by wpsimp
+
+lemma vcpuFlush_invs'[wp]:
+  "vcpuFlush \<lbrace>invs'\<rbrace>"
+  unfolding vcpuFlush_def
+  by wpsimp
+
 lemma scheduleChooseNewThread_fragment_corres:
   "corres dc (invs and valid_sched and (\<lambda>s. scheduler_action s = choose_new_thread)) (invs' and (\<lambda>s. ksSchedulerAction s = ChooseNewThread))
-     (do _ \<leftarrow> when (domainTime = 0) next_domain;
+     (do _ \<leftarrow> when (domainTime = 0) (do
+             _ \<leftarrow> arch_prepare_next_domain;
+             next_domain
+         od);
          choose_thread
       od)
-     (do _ \<leftarrow> when (domainTime = 0) nextDomain;
+     (do _ \<leftarrow> when (domainTime = 0) (do
+              _ \<leftarrow> Arch.prepareNextDomain;
+              nextDomain
+          od);
           chooseThread
       od)"
-  apply (subst bind_dummy_ret_val)
-  apply (subst bind_dummy_ret_val)
+  unfolding arch_prepare_next_domain_def prepareNextDomain_def
+  apply (subst bind_dummy_ret_val)+
   apply (rule corres_guard_imp)
     apply (rule corres_split)
        apply (rule corres_when, simp)
-       apply (rule nextDomain_corres)
-      apply simp
+       apply (rule corres_split[OF vcpuFlush_corres])
+         apply simp
+         apply (rule nextDomain_corres)
+        apply wpsimp+
       apply (rule chooseThread_corres)
      apply (wp nextDomain_invs_no_cicd')+
-   apply (clarsimp simp: valid_sched_def invs'_def valid_state'_def all_invs_but_ct_idle_or_in_cur_domain'_def)+
+   apply (fastforce simp: valid_sched_def invs'_def valid_state'_def all_invs_but_ct_idle_or_in_cur_domain'_def)+
   done
 
 lemma scheduleSwitchThreadFastfail_corres:
@@ -2366,7 +2417,7 @@ lemma scheduleChooseNewThread_invs':
   "\<lbrace> invs' and (\<lambda>s. ksSchedulerAction s = ChooseNewThread) \<rbrace>
    scheduleChooseNewThread
    \<lbrace> \<lambda>_ s. invs' s \<rbrace>"
-  unfolding scheduleChooseNewThread_def
+  unfolding scheduleChooseNewThread_def prepareNextDomain_def
   apply (wpsimp wp: ssa_invs' chooseThread_invs_no_cicd' chooseThread_ct_not_queued_2
                     chooseThread_activatable_2 chooseThread_invs_no_cicd'
                     chooseThread_in_cur_domain' nextDomain_invs_no_cicd' chooseThread_ct_not_queued_2)
@@ -2447,7 +2498,7 @@ lemma scheduleChooseNewThread_ct_activatable'[wp]:
   "\<lbrace> invs' and (\<lambda>s. ksSchedulerAction s = ChooseNewThread) \<rbrace>
    scheduleChooseNewThread
    \<lbrace>\<lambda>_. ct_in_state' activatable'\<rbrace>"
-  unfolding scheduleChooseNewThread_def
+  unfolding scheduleChooseNewThread_def prepareNextDomain_def
   by (wpsimp simp: ct_in_state'_def
                 wp: ssa_invs' nextDomain_invs_no_cicd'
                     chooseThread_activatable_2[simplified ct_in_state'_def]

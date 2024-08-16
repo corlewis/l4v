@@ -745,25 +745,13 @@ lemma ThreadDecls_H_switchToThread_ct [wp]:
   apply (wp | clarsimp)+
   done
 
-crunch nextDomain
+crunch nextDomain, Arch.prepareNextDomain
   for no_orphans[wp]: no_orphans
-(wp: no_orphans_lift simp: Let_def)
-
-crunch nextDomain
-  for tcbQueued[wp]: "\<lambda>s. Q (obj_at' (\<lambda>tcb. P (tcbQueued tcb)) tcb_ptr s)"
-(simp: Let_def)
-
-crunch nextDomain
-  for st_tcb_at'[wp]: "\<lambda>s. P (st_tcb_at' P' p s)"
-(simp: Let_def)
-
-crunch nextDomain
-  for ct'[wp]: "\<lambda>s. P (ksCurThread s)"
-(simp: Let_def)
-
-crunch nextDomain
-  for sch_act_not[wp]: "sch_act_not t"
-(simp: Let_def)
+  and tcbQueued[wp]: "\<lambda>s. Q (obj_at' (\<lambda>tcb. P (tcbQueued tcb)) tcb_ptr s)"
+  and st_tcb_at'[wp]: "\<lambda>s. P (st_tcb_at' P' p s)"
+  and ct'[wp]: "\<lambda>s. P (ksCurThread s)"
+  and sch_act_not[wp]: "sch_act_not t"
+  (wp: no_orphans_lift simp: Let_def wp: crunch_wps)
 
 lemma all_invs_but_ct_idle_or_in_cur_domain'_strg:
   "invs' s \<longrightarrow> all_invs_but_ct_idle_or_in_cur_domain' s"
@@ -828,17 +816,17 @@ lemma scheduleChooseNewThread_no_orphans:
              \<and> (st_tcb_at' runnable' (ksCurThread s) s \<longrightarrow> ksCurThread s \<in> all_queued_tcb_ptrs s))\<rbrace>
    scheduleChooseNewThread
    \<lbrace>\<lambda>_. no_orphans\<rbrace>"
-  unfolding scheduleChooseNewThread_def
-     apply (wp add: ssa_no_orphans hoare_vcg_all_lift)
-         apply (wp hoare_disjI1 chooseThread_nosch)+
-    apply (wp nextDomain_invs_no_cicd' hoare_vcg_imp_lift
-               hoare_lift_Pf2 [OF tcbQueued_all_queued_tcb_ptrs_lift[OF nextDomain_tcbQueued]
-                                  nextDomain_ct']
-               hoare_lift_Pf2 [OF st_tcb_at'_is_active_tcb_ptr_lift[OF nextDomain_st_tcb_at']
-                                  nextDomain_ct']
-               hoare_vcg_all_lift getDomainTime_wp)[2]
-   apply (wpsimp simp: if_apply_def2 invs'_invs_no_cicd all_queued_tcb_ptrs_def
-                       is_active_tcb_ptr_runnable')+
+  unfolding scheduleChooseNewThread_def prepareNextDomain_def
+  apply (wp add: ssa_no_orphans hoare_vcg_all_lift)
+     apply (wp hoare_disjI1 chooseThread_nosch)+
+     apply (wp nextDomain_invs_no_cicd' hoare_vcg_imp_lift
+                hoare_lift_Pf2 [OF tcbQueued_all_queued_tcb_ptrs_lift[OF nextDomain_tcbQueued]
+                                   nextDomain_ct']
+                hoare_lift_Pf2 [OF st_tcb_at'_is_active_tcb_ptr_lift[OF nextDomain_st_tcb_at']
+                                   nextDomain_ct']
+                hoare_vcg_all_lift getDomainTime_wp)[2]
+    apply (wpsimp wp: hoare_vcg_imp_lift st_tcb_at'_is_active_tcb_ptr_lift tcbQueued_all_queued_tcb_ptrs_lift | wps)+
+  apply (clarsimp simp: invs'_invs_no_cicd is_active_tcb_ptr_runnable')+
   done
 
 lemma setSchedulerAction_tcbQueued[wp]:
@@ -917,35 +905,26 @@ proof -
          \<comment> \<open>action = ResumeCurrentThread\<close>
          apply (wp)[1]
         \<comment> \<open>action = ChooseNewThread\<close>
-        apply (clarsimp simp: when_def scheduleChooseNewThread_def)
-        apply (wp ssa_no_orphans hoare_vcg_all_lift)
-            apply (wp hoare_disjI1 chooseThread_nosch)
-           apply (wp nextDomain_invs_no_cicd' hoare_vcg_imp_lift
-                     hoare_lift_Pf2 [OF tcbQueued_all_queued_tcb_ptrs_lift
-                                      [OF nextDomain_tcbQueued]
-                                      nextDomain_ct']
-                     hoare_lift_Pf2 [OF st_tcb_at'_is_active_tcb_ptr_lift
-                                      [OF nextDomain_st_tcb_at']
-                                      nextDomain_ct']
-                     hoare_vcg_all_lift getDomainTime_wp)[2]
-          apply wpsimp
-         apply ((wp tcbSchedEnqueue_no_orphans tcbSchedEnqueue_all_queued_tcb_ptrs'
-                    hoare_drop_imp
-                 | clarsimp simp: all_queued_tcb_ptrs_def
-                 | strengthen all_invs_but_ct_idle_or_in_cur_domain'_strg
-                 | wps)+)[1]
+        apply (clarsimp simp: when_def)
+        apply (wp scheduleChooseNewThread_no_orphans hoare_vcg_all_lift)
+          apply ((wp tcbSchedEnqueue_no_orphans tcbSchedEnqueue_all_queued_tcb_ptrs'
+                     hoare_drop_imp
+                  | clarsimp simp: all_queued_tcb_ptrs_def
+                  | strengthen all_invs_but_ct_idle_or_in_cur_domain'_strg
+                  | wps)+)[1]
+         apply wpsimp
         apply wpsimp
        \<comment> \<open>action = SwitchToThread candidate\<close>
        apply (clarsimp)
        apply (rename_tac candidate)
        apply (wpsimp wp: do_switch_to abort_switch_to_enq abort_switch_to_app)
-              (* isHighestPrio *)
+      (* isHighestPrio *)
               apply (wp hoare_drop_imps)
              apply (wp add: tcbSchedEnqueue_no_orphans)+
         apply (clarsimp simp: conj_comms cong: conj_cong imp_cong split del: if_split)
         apply (wp hoare_vcg_imp_lift'
                | strengthen not_pred_tcb_at'_strengthen)+
-        apply (wps | wpsimp wp: tcbSchedEnqueue_all_queued_tcb_ptrs')+
+         apply (wps | wpsimp wp: tcbSchedEnqueue_all_queued_tcb_ptrs')+
     apply (fastforce simp: is_active_tcb_ptr_runnable' all_invs_but_ct_idle_or_in_cur_domain'_strg
                            invs_switchToThread_runnable')
     done
