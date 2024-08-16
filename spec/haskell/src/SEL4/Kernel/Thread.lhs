@@ -308,7 +308,9 @@ has the highest runnable priority in the system on kernel entry (unless idle).
 > scheduleChooseNewThread :: Kernel ()
 > scheduleChooseNewThread = do
 >     domainTime <- getDomainTime
->     when (domainTime == 0) $ nextDomain
+>     when (domainTime == 0) $ do
+>         Arch.prepareNextDomain
+>         nextDomain
 >     chooseThread
 >     setSchedulerAction ResumeCurrentThread
 
