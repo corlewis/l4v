@@ -399,7 +399,7 @@ lemma ksDomSched_length_dom_relation[simp]:
 
 lemma nextDomain_ccorres:
   "ccorres dc xfdc invs' UNIV [] nextDomain (Call nextDomain_'proc)"
-  apply (cinit)
+  apply cinit
    apply (simp add: ksDomScheduleLength_def sdiv_word_def sdiv_int_def)
    apply (rule_tac P=invs' and P'=UNIV in ccorres_from_vcg)
    apply (rule allI, rule conseqPre, vcg)
@@ -435,11 +435,37 @@ lemma nextDomain_ccorres:
   apply simp
   done
 
+lemma vcpu_flush_ccorres:
+  "ccorres dc xfdc invs' UNIV [] vcpuFlush (Call vcpu_flush_'proc)"
+  apply cinit
+   apply (simp add: when_def)
+   apply (rule ccorres_pre_getCurVCPU)
+   apply (rule_tac R="\<lambda>s. armHSCurVCPU (ksArchState s) = hsCurVCPU" in ccorres_cond)
+     apply (clarsimp simp: cur_vcpu_relation_def dest!: rf_sr_ksArchState_armHSCurVCPU split: option.splits)
+    apply (rule ccorres_split_nothrow_dc)
+       apply (ctac add: vcpu_save_ccorres)
+      apply (ctac add: vcpuInvalidateActive_ccorres)
+     apply wpsimp
+    apply (vcg exspec=vcpu_save_modifies)
+   apply (rule ccorres_return_Skip)
+  apply (fastforce simp: cur_vcpu_relation_def invs'_HScurVCPU_vcpu_at' split: option.splits)
+  done
+
+lemma Arch_prepareNextDomain_ccorres:
+  "ccorres dc xfdc invs' UNIV [] Arch.prepareNextDomain (Call Arch_prepareNextDomain_'proc)"
+  apply cinit
+   apply (ctac add: vcpu_flush_ccorres)
+  apply simp
+  done
+
 lemma scheduleChooseNewThread_ccorres:
   "ccorres dc xfdc
      (\<lambda>s. invs' s \<and> ksSchedulerAction s = ChooseNewThread) UNIV hs
      (do domainTime \<leftarrow> getDomainTime;
-         y \<leftarrow> when (domainTime = 0) nextDomain;
+         _ \<leftarrow> when (domainTime = 0) (do
+             _ \<leftarrow> Arch.prepareNextDomain;
+             nextDomain
+         od);
          chooseThread
       od)
      (Call scheduleChooseNewThread_'proc)"
@@ -448,12 +474,16 @@ lemma scheduleChooseNewThread_ccorres:
    apply (rule ccorres_split_nothrow)
        apply (rule_tac R="\<lambda>s. ksDomainTime s = domainTime" in ccorres_when)
         apply (fastforce simp: rf_sr_ksDomainTime)
-       apply (rule_tac xf'=xfdc in ccorres_call[OF nextDomain_ccorres] ; simp)
+       apply (rule ccorres_split_nothrow_dc)
+          apply (ctac add: Arch_prepareNextDomain_ccorres)
+         apply (rule_tac xf'=xfdc in ccorres_call[OF nextDomain_ccorres] ; simp)
+        apply (wpsimp simp: prepareNextDomain_def)
+       apply (vcg exspec=Arch_prepareNextDomain_modifies)
       apply ceqv
      apply (ctac (no_vcg) add: chooseThread_ccorres)
-    apply (wp nextDomain_invs_no_cicd')
+    apply (wpsimp wp: nextDomain_invs_no_cicd' simp: prepareNextDomain_def)
    apply clarsimp
-   apply (vcg exspec=nextDomain_modifies)
+   apply (vcg exspec=nextDomain_modifies exspec=Arch_prepareNextDomain_modifies)
   apply (clarsimp simp: if_apply_def2 invs'_invs_no_cicd')
   done
 
