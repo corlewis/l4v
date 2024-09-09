@@ -19,6 +19,7 @@ arch_requalify_consts (A)
   sanitise_register
   arch_get_sanitise_register_info
   arch_post_modify_registers
+  arch_prepare_set_domain
 
 section "Activating Threads"
 
@@ -265,7 +266,11 @@ definition
 definition invoke_domain:: "obj_ref \<Rightarrow> domain \<Rightarrow> (data list,'z::state_ext) p_monad"
 where
   "invoke_domain thread domain \<equiv>
-     liftE (do do_extended_op (set_domain thread domain); return [] od)"
+     liftE (do
+       arch_prepare_set_domain thread domain;
+       do_extended_op (set_domain thread domain);
+       return []
+     od)"
 
 text \<open>Get all of the message registers, both from the sending thread's current
 register file and its IPC buffer.\<close>

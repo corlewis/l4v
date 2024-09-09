@@ -274,6 +274,15 @@ definition vcpu_flush :: "(unit,'z::state_ext) s_monad" where
      od
    od"
 
+\<comment> \<open>FIXME: find the right place to move this to, ArchTcb_A doesn't work as it is imported by VCPUAcc_A
+    and leads to an unresolvable circuler dependency\<close>
+definition arch_prepare_set_domain :: "obj_ref \<Rightarrow> domain \<Rightarrow> (unit,'z::state_ext) s_monad" where
+  "arch_prepare_set_domain t new_dom \<equiv> do
+     cur_vcpu \<leftarrow> gets (arm_current_vcpu \<circ> arch_state);
+     vcpu \<leftarrow> arch_thread_get tcb_vcpu t;
+     when (cur_vcpu \<noteq> None \<and> map_option fst cur_vcpu = vcpu) vcpu_flush
+   od"
+
 
 text \<open>VCPU objects can be associated with and dissociated from TCBs.\<close>
 
