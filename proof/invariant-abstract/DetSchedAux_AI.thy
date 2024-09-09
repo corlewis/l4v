@@ -118,7 +118,7 @@ lemma TCB_default_objectD[dest!]:
 declare tcb_state_merge_tcb_state_default[simp]
 
 lemma retype_region_etcb_at[wp]:
-  "\<lbrace>etcb_at P t\<rbrace> retype_region a b c d dev \<lbrace>\<lambda>r s. st_tcb_at (Not o inactive) t s \<longrightarrow> etcb_at P t s\<rbrace> "
+  "\<lbrace>\<lambda>s. Q (etcb_at P t s)\<rbrace> retype_region a b c d dev \<lbrace>\<lambda>r s. st_tcb_at (Not o inactive) t s \<longrightarrow> Q (etcb_at P t s)\<rbrace>"
   apply (simp add: retype_region_def)
   apply wp
   apply (clarsimp simp add: pred_tcb_at_def obj_at_def simp del: fun_upd_apply)
