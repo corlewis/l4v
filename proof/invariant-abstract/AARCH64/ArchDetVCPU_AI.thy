@@ -469,6 +469,63 @@ lemma arch_perform_invocation_valid_cur_vcpu[wp]:
   unfolding arch_perform_invocation_def
   by (wpsimp simp: valid_arch_inv_def)
 
+\<comment> \<open>FIXME: move (where?)\<close>
+lemma bound_vcpu_bound_tcb_at:
+  "\<lbrakk>sym_refs (state_hyp_refs_of s); valid_objs s; vcpu_tcbs_of s vcpuptr = Some tcbptr\<rbrakk>
+  \<Longrightarrow> arch_tcb_at (\<lambda>itcb. itcb_vcpu itcb = (Some vcpuptr)) tcbptr s"
+  apply (drule_tac x=vcpuptr in sym_refsD[rotated])
+   apply (fastforce simp: state_hyp_refs_of_def pred_tcb_at_def obj_at_def in_omonad)
+  apply (clarsimp simp: in_omonad)
+  apply (erule (1) valid_objsE)
+\<comment> \<open>FIXME: @{thm valid_obj_arch_valid_obj} should be simp\<close>
+  apply (clarsimp simp: valid_obj_def valid_vcpu_def typ_at_eq_kheap_obj)
+  apply (fastforce simp: pred_tcb_at_def obj_at_def state_hyp_refs_of_def tcb_vcpu_refs_def
+                  split: option.splits)
+  done
+
+lemma thread_set_domain_cur_vcpu_in_cur_domain[wp]:
+  "\<lbrace>\<lambda>s. cur_vcpu_in_cur_domain s \<and> sym_refs (state_hyp_refs_of s) \<and> valid_objs s \<and>
+        (arm_current_vcpu (arch_state s) = None \<or> arch_tcb_at (\<lambda>itcb. itcb_vcpu itcb \<noteq> map_option fst (arm_current_vcpu (arch_state s))) tptr s)\<rbrace>
+   thread_set_domain tptr new_dom
+   \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
+  unfolding thread_set_domain_def ethread_set_def set_eobject_def etcb_at_def
+  apply wpsimp
+  by (auto simp: cur_vcpu_in_cur_domain_defs pred_tcb_at_def obj_at_def get_etcb_def etcb_at_def
+          split: option.splits dest: bound_vcpu_bound_tcb_at)
+
+lemma set_domain_cur_vcpu_in_cur_domain[wp]:
+  "\<lbrace>\<lambda>s. cur_vcpu_in_cur_domain s \<and> sym_refs (state_hyp_refs_of s) \<and> valid_objs s \<and>
+        (arm_current_vcpu (arch_state s) = None \<or> arch_tcb_at (\<lambda>itcb. itcb_vcpu itcb \<noteq> map_option fst (arm_current_vcpu (arch_state s))) tptr s)\<rbrace>
+   set_domain tptr new_dom
+   \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
+  unfolding set_domain_def
+  by (wpsimp wp: thread_set_domain_cur_vcpu_in_cur_domain hoare_vcg_disj_lift | wps)+
+
+lemma arch_prepare_set_domain_make_vcpu_safe[wp]:
+  "\<lbrace>\<top>\<rbrace>
+   arch_prepare_set_domain tptr new_dom
+   \<lbrace>\<lambda>_ s. arm_current_vcpu (arch_state s) = None \<or> arch_tcb_at (\<lambda>itcb. itcb_vcpu itcb \<noteq> map_option fst (arm_current_vcpu (arch_state s))) tptr s\<rbrace>"
+  unfolding arch_prepare_set_domain_def
+  apply (wpsimp wp: vcpu_flush_arm_current_vcpu_None[THEN hoare_strengthen_post] arch_thread_get_wp)
+  apply (clarsimp simp: pred_tcb_at_def obj_at_def)
+  done
+
+lemma vcpu_flush_cur_vcpu_in_cur_domain[wp]:
+  "\<lbrace>\<top>\<rbrace> vcpu_flush \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
+  unfolding vcpu_flush_def
+  by (wpsimp simp: cur_vcpu_in_cur_domain_defs)
+
+crunch arch_prepare_set_domain
+  for cur_vcpu_in_cur_domain[wp]: cur_vcpu_in_cur_domain
+  (wp: crunch_wps simp: crunch_simps)
+
+lemma invoke_domain_cur_vcpu_in_cur_domain[wp]:
+  "\<lbrace>\<lambda>s. cur_vcpu_in_cur_domain s \<and> sym_refs (state_hyp_refs_of s) \<and> valid_objs s\<rbrace>
+   invoke_domain thread domain
+   \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
+  unfolding invoke_domain_def
+  by wpsimp
+
 crunch do_reply_transfer, handle_recv, handle_vm_fault
   for etcb_at[wp]: "etcb_at P t"
   and cur_domain[wp]: "\<lambda>s. P (cur_domain s)"
@@ -489,12 +546,9 @@ crunch
   (wp: cur_vcpu_in_cur_domain_lift_strong dxo_wp_weak crunch_wps
    simp: crunch_simps)
 
-crunch invoke_domain \<comment> \<open>FIXME: just for testing for now\<close>
-  for cur_vcpu_in_cur_domain[wp]: cur_vcpu_in_cur_domain
-(ignore: invoke_domain)
-
 lemma perform_invocation_valid_cur_vcpu[wp]:
   "\<lbrace>cur_vcpu_in_cur_domain and ct_in_cur_domain and cur_vcpu and valid_invocation iv
+    and valid_objs and (\<lambda>s. sym_refs (state_hyp_refs_of s))
     and (\<lambda>s. scheduler_action s = resume_cur_thread)\<rbrace>
    perform_invocation blocking call iv
    \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
@@ -508,7 +562,8 @@ lemma set_thread_state_runnable_scheduler_action:
   by (clarsimp simp: pred_tcb_at_def obj_at_def)
 
 lemma handle_invocation_cur_vcpu_in_cur_domain[wp]:
-  "\<lbrace>cur_vcpu_in_cur_domain and invs and ct_in_cur_domain and (\<lambda>s. scheduler_action s = resume_cur_thread)\<rbrace>
+  "\<lbrace>cur_vcpu_in_cur_domain and invs and ct_in_cur_domain and ct_active
+    and (\<lambda>s. scheduler_action s = resume_cur_thread)\<rbrace>
    handle_invocation calling blocking
    \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
   unfolding handle_invocation_def
@@ -516,11 +571,14 @@ lemma handle_invocation_cur_vcpu_in_cur_domain[wp]:
           apply (wp gts_wp hoare_vcg_all_lift hoare_drop_imps cur_vcpu_typ_lift
                     set_thread_state_runnable_scheduler_action
                 | simp add: split_def)+
-  apply (clarsimp simp: invs_def valid_state_def valid_arch_state_def)
+  apply (fastforce simp: invs_def valid_state_def valid_arch_state_def valid_pspace_def
+                         valid_tcb_state_def ct_in_state_def
+                  elim!: pred_tcb_weakenE)
   done
 
 lemma handle_event_cur_vcpu_in_cur_domain[wp]:
-  "\<lbrace>cur_vcpu_in_cur_domain and invs and ct_in_cur_domain and (\<lambda>s. scheduler_action s = resume_cur_thread)\<rbrace>
+  "\<lbrace>cur_vcpu_in_cur_domain and invs and ct_in_cur_domain and (\<lambda>s. e \<noteq> Interrupt \<longrightarrow> ct_active s)
+    and (\<lambda>s. scheduler_action s = resume_cur_thread)\<rbrace>
    handle_event e
    \<lbrace>\<lambda>_. cur_vcpu_in_cur_domain\<rbrace>"
   apply (cases e; clarsimp; (solves wpsimp)?)
