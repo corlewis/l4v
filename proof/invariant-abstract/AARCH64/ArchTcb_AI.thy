@@ -123,10 +123,12 @@ lemma checked_insert_tcb_invs[wp]: (* arch specific *)
 
 crunch arch_get_sanitise_register_info, arch_post_modify_registers
   for tcb_at[wp, Tcb_AI_assms]: "tcb_at a"
-crunch arch_get_sanitise_register_info, arch_post_modify_registers
+crunch arch_get_sanitise_register_info, arch_post_modify_registers, arch_prepare_set_domain
   for invs[wp, Tcb_AI_assms]: "invs"
 crunch arch_get_sanitise_register_info, arch_post_modify_registers
   for ex_nonz_cap_to[wp, Tcb_AI_assms]: "ex_nonz_cap_to a"
+crunch arch_prepare_set_domain
+  for typ_at[wp, Tcb_AI_assms]: "\<lambda>s. P (typ_at T p s)"
 
 lemma finalise_cap_not_cte_wp_at[Tcb_AI_assms]:
   assumes x: "P cap.NullCap"

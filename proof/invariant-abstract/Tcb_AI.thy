@@ -46,6 +46,10 @@ locale Tcb_AI_1 =
                 finalise_cap cap fin \<lbrace>\<lambda>rv s. \<forall>cp \<in> ran (caps_of_state s). P cp\<rbrace>"
   assumes table_cap_ref_max_free_index_upd[simp]: (* reordered to resolve dependency in tc_invs *)
   "\<And>cap. table_cap_ref (max_free_index_update cap) = table_cap_ref cap"
+  assumes arch_prepare_set_domain_typ_at[wp]:
+  "\<And>P t d T p. arch_prepare_set_domain t d \<lbrace>\<lambda>(s::'state_ext state). P (typ_at T p s)\<rbrace>"
+  assumes arch_prepare_set_domain_invs[wp]:
+  "\<And>t d. arch_prepare_set_domain t d \<lbrace>\<lambda>(s::'state_ext state). invs s\<rbrace>"
 
 lemma ct_in_state_weaken:
   "\<lbrakk> ct_in_state Q s; \<And>st. Q st \<Longrightarrow> P st \<rbrakk> \<Longrightarrow> ct_in_state P s"
@@ -1252,16 +1256,12 @@ lemma pred_tcb_at_arch_state[simp]:
   "pred_tcb_at proj P t (arch_state_update f s) = pred_tcb_at proj P t s"
   by (simp add: pred_tcb_at_def obj_at_def)
 
-lemma invoke_domain_invs:
-  "\<lbrace>invs\<rbrace>
-     invoke_domain t d
-   \<lbrace>\<lambda>rv. invs\<rbrace>"
+lemma (in Tcb_AI_1) invoke_domain_invs:
+  "invoke_domain t d \<lbrace>invs::'state_ext::state_ext state \<Rightarrow> bool\<rbrace>"
   by (simp add: invoke_domain_def | wp)+
 
-lemma invoke_domain_typ_at[wp]:
-  "\<lbrace>\<lambda>s. P (typ_at T p s)\<rbrace>
-     invoke_domain t d
-   \<lbrace>\<lambda>rv s. P (typ_at T p s)\<rbrace>"
+lemma (in Tcb_AI_1) invoke_domain_typ_at[wp]:
+  "invoke_domain t d \<lbrace>\<lambda>s::'state_ext::state_ext state. P (typ_at T p s)\<rbrace>"
   by (simp add: invoke_domain_def | wp)+
 
 lemma decode_domain_inv_inv:

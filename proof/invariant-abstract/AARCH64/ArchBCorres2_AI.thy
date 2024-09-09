@@ -76,7 +76,7 @@ lemma handle_arch_fault_reply_bcorres[wp,BCorres2_AI_assms]:
   by (cases a; simp add: handle_arch_fault_reply_def; wp)
 
 crunch
-    arch_switch_to_thread,arch_switch_to_idle_thread,arch_prepare_next_domain
+    arch_switch_to_thread,arch_switch_to_idle_thread,arch_prepare_next_domain,arch_prepare_set_domain
   for (bcorres) bcorres[wp, BCorres2_AI_assms]: truncate_state
 
 end

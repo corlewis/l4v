@@ -30,6 +30,9 @@ locale BCorres2_AI =
         arch_switch_to_idle_thread"
   assumes arch_prepare_next_domain_bcorres[wp]:
     "bcorres (arch_prepare_next_domain :: 'a state \<Rightarrow> _) arch_prepare_next_domain"
+  assumes arch_prepare_set_domain_bcorres[wp]:
+    "bcorres (arch_prepare_set_domain t d :: 'a state \<Rightarrow> _) (arch_prepare_set_domain t d)"
+
 
 crunch deleting_irq_handler
   for (bcorres) bcorres[wp]: truncate_state
@@ -355,7 +358,7 @@ lemma check_cap_at_bcorres[wp]: "bcorres f f' \<Longrightarrow> bcorres (check_c
   apply (wp | simp)+
   done
 
-lemma invoke_domain_bcorres[wp]: "bcorres (invoke_domain t d) (invoke_domain t d)"
+lemma (in BCorres2_AI) invoke_domain_bcorres[wp]: "bcorres (invoke_domain t d :: 'a state \<Rightarrow> _) (invoke_domain t d)"
   by (simp add: invoke_domain_def, wp)
 
 lemma truncate_state_detype[simp]: "truncate_state (detype x s) = detype x (truncate_state s)"

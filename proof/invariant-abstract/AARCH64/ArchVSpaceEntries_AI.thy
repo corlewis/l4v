@@ -131,7 +131,7 @@ lemma invoke_cnode_valid_vspace_objs'[wp]:
   unfolding invoke_cnode_def
   by (wpsimp wp: get_cap_wp split_del: if_split)
 
-crunch invoke_tcb
+crunch invoke_tcb, arch_prepare_set_domain
   for valid_vspace_objs'[wp]: "valid_vspace_objs'"
   (wp: check_cap_inv crunch_wps simp: crunch_simps
        ignore: check_cap_at)

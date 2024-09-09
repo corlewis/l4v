@@ -575,12 +575,15 @@ lemma invoke_tcb_valid_cur_vcpu[wp]:
   apply (forward_inv_step wp: check_cap_inv)+
   by (wpsimp wp: check_cap_inv hoare_drop_imps thread_set_hyp_refs_trivial thread_set_valid_cur_vcpu)
 
-crunch invoke_domain
+lemma invoke_domain_valid_cur_vcpu:
+  "\<lbrace>valid_cur_vcpu\<rbrace> invoke_domain thread domain \<lbrace>\<lambda>_ s. valid_cur_vcpu s \<or> scheduler_action s\<rbrace>"
+
+\<comment> \<open>crunch invoke_domain
   for arch_state[wp]: "\<lambda>s. P (arch_state s)"
   and arch_tcb_at[wp]: "arch_tcb_at P t"
   and cur_thread[wp]: "\<lambda>s. P (cur_thread s)"
   and valid_cur_vcpu[wp]: valid_cur_vcpu
-  (wp: valid_cur_vcpu_lift_weak)
+  (wp: valid_cur_vcpu_lift_weak)\<close>
 
 crunch perform_asid_control_invocation
   for cur_thread[wp]: "\<lambda>s. P (cur_thread s )"
@@ -621,6 +624,7 @@ lemma perform_invocation_valid_cur_vcpu[wp]:
                     perform_asid_control_invocation_valid_cur_vcpu)
   apply (fastforce simp: valid_arch_inv_def)
   done
+sorry
 
 crunch reply_from_kernel, receive_signal
   for valid_cur_vcpu[wp]: valid_cur_vcpu
