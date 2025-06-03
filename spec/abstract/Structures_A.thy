@@ -375,6 +375,9 @@ type_synonym tcb_flags = "tcb_flag set"
 definition word_to_tcb_flags :: "machine_word \<Rightarrow> tcb_flags" where
   "word_to_tcb_flags w \<equiv> {flag. tcbFlagToWord flag && w \<noteq> 0}"
 
+definition tcb_flags_to_word :: "tcb_flags \<Rightarrow> machine_word" where
+  "tcb_flags_to_word flags \<equiv> THE w. word_to_tcb_flags w = flags \<and> w \<le> mask numFlags"
+
 record tcb =
  tcb_ctable        :: cap
  tcb_vtable        :: cap

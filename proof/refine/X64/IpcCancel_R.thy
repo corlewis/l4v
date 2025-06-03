@@ -2297,6 +2297,8 @@ lemma asUser_tcbQueued[wp]:
   unfolding asUser_def threadGet_stateAssert_gets_asUser
   by (wpsimp wp: threadSet_obj_at'_no_state simp: asUser_fetch_def obj_at'_def)
 
+lemmas asUser_st_tcb_at'[wp] = asUser_obj_at[folded st_tcb_at'_def]
+
 crunch prepareThreadDelete
   for unqueued: "obj_at' (Not \<circ> tcbQueued) t"
   and inactive: "st_tcb_at' ((=) Inactive) t'"

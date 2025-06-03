@@ -501,6 +501,9 @@ Various operations on the free index of an Untyped cap.
 
 > data TcbFlag = FpuDisabled
 
+> numFlags :: Int
+> numFlags = 1
+
 > tcbFlagToWord :: TcbFlag -> Word
 > tcbFlagToWord (FpuDisabled) = bit 0
 
